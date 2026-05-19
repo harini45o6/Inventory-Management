@@ -197,7 +197,7 @@ def products():
         FROM products p
         LEFT JOIN suppliers s
         ON p.supplier_id = s.id
-        ORDER BY p.sku
+        ORDER BY p.sku DESC
     """)
     items = cursor.fetchall()
 
@@ -221,7 +221,6 @@ def products():
 @app.route("/add_item", methods=["POST"])
 @login_required
 def add_item():
-    sku      = request.form["sku"].strip()
     name     = request.form["name"].strip()
     category = request.form["category"].strip()
     price    = float(request.form["price"])
@@ -252,19 +251,18 @@ def add_item():
         elif supplier_id_raw:
             supplier_id = int(supplier_id_raw)
 
-        # ── Auto-generate SKU if empty ───────────────────────────────
-        if not sku:
-            cursor.execute("""
-                SELECT sku FROM products
-                ORDER BY CAST(SUBSTRING(sku, 4) AS UNSIGNED) DESC
-                LIMIT 1
-            """)
-            last_item = cursor.fetchone()
-            if last_item and last_item["sku"]:
-                last_number = int(last_item["sku"].replace("PRD", ""))
-                sku = f"PRD{last_number + 1:03d}"
-            else:
-                sku = "PRD001"
+        # ── Auto-generate SKU ────────────────────────────────────────
+        cursor.execute("""
+            SELECT sku FROM products
+            ORDER BY CAST(SUBSTRING(sku, 4) AS UNSIGNED) DESC
+            LIMIT 1
+        """)
+        last_item = cursor.fetchone()
+        if last_item and last_item["sku"]:
+            last_number = int(last_item["sku"].replace("PRD", ""))
+            sku = f"PRD{last_number + 1:03d}"
+        else:
+            sku = "PRD001"
 
         # ── Insert product ───────────────────────────────────────────
         cursor.execute("""
@@ -366,11 +364,28 @@ def edit_product():
     sku         = request.form["sku"].strip()
     new_name    = request.form["name"].strip()
     new_cat     = request.form["category"].strip()
-    new_price   = float(request.form["price"])
-    new_stock   = int(request.form["stock"])
     supplier_id = request.form.get("supplier_id", "").strip() or None
     if supplier_id:
         supplier_id = int(supplier_id)
+
+    # Handle new supplier creation inside edit
+    supplier_id_raw = request.form.get("supplier_id", "").strip()
+    if supplier_id_raw == "__new_edit__":
+        new_sup_name    = request.form.get("new_supplier_name", "").strip()
+        new_sup_contact = request.form.get("new_supplier_contact", "").strip()
+        new_sup_email   = request.form.get("new_supplier_email", "").strip()
+        if new_sup_name:
+            try:
+                db2 = get_db()
+                c2  = db2.cursor()
+                c2.execute("INSERT INTO suppliers (supplier_name, contact, email) VALUES (%s,%s,%s)",
+                           (new_sup_name, new_sup_contact, new_sup_email))
+                db2.commit()
+                supplier_id = c2.lastrowid
+                db2.close()
+            except Exception:
+                pass
+
     try:
         db = get_db()
         cursor = db.cursor(dictionary=True)
@@ -378,9 +393,9 @@ def edit_product():
         old = cursor.fetchone()
         cursor.execute("""
             UPDATE products
-            SET name=%s, category=%s, price=%s, stock=%s, supplier_id=%s
+            SET name=%s, category=%s, supplier_id=%s
             WHERE sku=%s
-        """, (new_name, new_cat, new_price, new_stock, supplier_id, sku))
+        """, (new_name, new_cat, supplier_id, sku))
         # Update supplier product count if supplier changed
         if supplier_id:
             cursor.execute("""
@@ -389,10 +404,6 @@ def edit_product():
                 ) WHERE id=%s
             """, (supplier_id, supplier_id))
         db.commit(); db.close()
-        if int(old["stock"]) != new_stock:
-            log_activity(sku, new_name, "Manual Edit", new_stock - int(old["stock"]),
-                         int(old["stock"]), new_stock,
-                         f"Product edited by {session['username']}")
         flash(f"'{new_name}' updated successfully.", "success")
     except Exception as e:
         flash(f"Error: {e}", "error")
@@ -834,16 +845,16 @@ def sales():
     sales_list = cursor.fetchall()
 
     # Summary cards
-    cursor.execute("SELECT COUNT(*) AS v FROM sales WHERE DATE(sale_date) = CURDATE()")
+    cursor.execute("SELECT COUNT(*) AS v FROM sales WHERE DATE(sale_date) = CURDATE() AND status = 'completed'")
     today_count = cursor.fetchone()["v"]
 
-    cursor.execute("SELECT COALESCE(SUM(total),0) AS v FROM sales WHERE DATE(sale_date) = CURDATE()")
+    cursor.execute("SELECT COALESCE(SUM(total),0) AS v FROM sales WHERE DATE(sale_date) = CURDATE() AND status = 'completed'")
     today_revenue = float(cursor.fetchone()["v"])
 
-    cursor.execute("SELECT COUNT(*) AS v FROM sales")
+    cursor.execute("SELECT COUNT(*) AS v FROM sales WHERE status = 'completed'")
     total_sales = cursor.fetchone()["v"]
 
-    cursor.execute("SELECT COALESCE(SUM(total),0) AS v FROM sales")
+    cursor.execute("SELECT COALESCE(SUM(total),0) AS v FROM sales WHERE status = 'completed'")
     total_revenue = float(cursor.fetchone()["v"])
 
     db.close()
@@ -1288,6 +1299,33 @@ def reports():
         stock_summary=stock_summary,
         stock_by_category=stock_by_category,
     )
+
+# ── GET SINGLE PRODUCT ────────────────────────────────────────────────────────
+@app.route("/get_product/<sku>")
+@login_required
+def get_product(sku):
+    db = get_db()
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT p.sku, p.name, p.category, p.price, p.stock,
+               p.supplier_id, s.supplier_name
+        FROM products p
+        LEFT JOIN suppliers s ON p.supplier_id = s.id
+        WHERE p.sku = %s
+    """, (sku,))
+    row = cursor.fetchone()
+    db.close()
+    if not row:
+        return jsonify({"error": "Not found"}), 404
+    return jsonify({
+        "sku": row["sku"],
+        "name": row["name"],
+        "category": row["category"],
+        "price": float(row["price"]),
+        "stock": int(row["stock"]),
+        "supplier_id": row["supplier_id"] or "",
+        "supplier_name": row["supplier_name"] or ""
+    })
 
 # ── PRODUCT SEARCH API ────────────────────────────────────────────────────────
 @app.route("/search_products")

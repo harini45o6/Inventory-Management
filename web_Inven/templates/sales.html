@@ -910,6 +910,26 @@ function confirmRefund(saleId, invoiceNo, btn) {
       const row = btn.closest('tr');
       row.querySelector('.badge').className   = 'badge refunded';
       row.querySelector('.badge').textContent = 'refunded';
+
+      // Deduct from Total Revenue card (4th card)
+      const totalRevEl = document.querySelector('.sales-cards .sales-card:nth-child(4) .card-value');
+      if (totalRevEl) {
+        const rowTotal = parseFloat(row.querySelector('td[style*="yellow"]')?.textContent?.replace('₹','').replace(',','') || '0');
+        const curr = parseFloat(totalRevEl.textContent.replace('₹','').replace(',','')) || 0;
+        totalRevEl.textContent = '₹' + Math.max(0, curr - rowTotal).toFixed(2);
+      }
+      // Deduct from Today's Revenue card (2nd card) if this is today's sale
+      const dateCell = row.cells[2]?.textContent || '';
+      const today = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+      if (dateCell.includes(today.split(',')[0])) {
+        const todayRevEl = document.querySelector('.sales-cards .sales-card:nth-child(2) .card-value');
+        if (todayRevEl) {
+          const rowTotal = parseFloat(row.querySelector('td[style*="yellow"]')?.textContent?.replace('₹','').replace(',','') || '0');
+          const curr = parseFloat(todayRevEl.textContent.replace('₹','').replace(',','')) || 0;
+          todayRevEl.textContent = '₹' + Math.max(0, curr - rowTotal).toFixed(2);
+        }
+      }
+
       // Swap Refund btn → Delete btn
       btn.outerHTML = `<button class="btn btn-red action-btn"
         onclick="confirmDeleteSale(${saleId}, '${invoiceNo}', this)">✕ Delete</button>`;
