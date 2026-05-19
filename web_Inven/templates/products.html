@@ -1,0 +1,435 @@
+{% extends "base.html" %}
+{% block title %}– Products{% endblock %}
+
+{% block content %}
+<style>
+select.form-control,
+#supplier-select,
+#edit-supplier-select {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+  outline: none;
+}
+select.form-control:focus,
+#supplier-select:focus,
+#edit-supplier-select:focus { border-color: var(--accent); }
+select.form-control option,
+#supplier-select option,
+#edit-supplier-select option { background: var(--surface); color: var(--text); }
+
+#new-supplier-fields,
+#edit-new-supplier-fields {
+  border-left: 2px solid var(--accent);
+  padding-left: 12px;
+  margin-top: 4px;
+}
+</style>
+
+<div class="topbar">
+  <h1>INVENTORY</h1>
+  <button class="btn btn-yellow" onclick="openModal('add-modal')">＋ Add Item</button>
+</div>
+
+<div class="content">
+  <div class="table-wrap">
+    <table id="products-table">
+      <thead>
+        <tr>
+          <th>SKU</th>
+          <th>Name</th>
+          <th>Category</th>
+          <th>Price</th>
+          <th>Stock</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr
+          data-sku="{{ item.sku }}"
+          data-name="{{ item.name | e }}"
+          data-category="{{ item.category | e }}"
+          data-price="{{ item.price }}"
+          data-stock="{{ item.stock }}"
+          data-supplier-id="{{ item.supplier_id if item.supplier_id else '' }}"
+          data-supplier-name="{{ item.supplier_name | default('Not assigned', true) | e }}"
+        >
+          <td><span class="sku-tag">{{ item.sku }}</span></td>
+          <td>{{ item.name }}</td>
+          <td>{{ item.category }}</td>
+          <td>₹{{ "%.2f"|format(item.price) }}</td>
+          <td>
+            <span class="{{ 'stock-low' if item.stock < 10 else 'stock-ok' }}">
+              {{ item.stock }}
+            </span>
+          </td>
+          <td>
+            <div class="action-btns">
+              <button class="btn btn-green action-btn"  data-action="stock-in">▲ IN</button>
+              <button class="btn btn-red action-btn"    data-action="stock-out">▼ OUT</button>
+              <button class="btn btn-blue action-btn"   data-action="price">$ Price</button>
+              <button class="btn btn-ghost action-btn"  data-action="supplier">⬡ Supplier</button>
+              <button class="btn action-btn" style="background:#1e3a5f;color:#5ea9ff;" data-action="edit">✎ Edit</button>
+              <button class="btn btn-red action-btn"    data-action="delete">✕ Delete</button>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" style="text-align:center;color:var(--muted);padding:40px;">
+            No products found. Add one to get started.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ ADD ITEM MODAL ══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="add-modal">
+  <div class="modal">
+    <button class="close-modal" onclick="closeModal('add-modal')">×</button>
+    <h2>ADD ITEM</h2>
+    <form method="POST" action="{{ url_for('add_item') }}">
+      <div class="form-group">
+        <label>SKU</label>
+        <input type="text" name="sku" placeholder="Leave empty for auto SKU">
+      </div>
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" name="name" required placeholder="Product name"/>
+      </div>
+      <div class="form-group">
+        <label>Category</label>
+        <select name="category" id="add-category" class="form-control" required>
+          <option value="" disabled selected>Select category…</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Price</label>
+        <input type="number" name="price" required step="0.01" min="0" placeholder="0.00"/>
+      </div>
+      <div class="form-group">
+        <label>Initial Stock</label>
+        <input type="number" name="stock" required min="0" placeholder="0"/>
+      </div>
+      <div class="form-group">
+        <label>Supplier</label>
+        <select name="supplier_id" id="supplier-select" onchange="toggleNewSupplier(this.value)">
+          <option value="">— No supplier —</option>
+          {% for s in suppliers %}
+          <option value="{{ s.id }}">{{ s.supplier_name }}</option>
+          {% endfor %}
+          <option value="__new__">＋ Add new supplier</option>
+        </select>
+      </div>
+      <div id="new-supplier-fields" style="display:none;">
+        <div class="form-group">
+          <label>Supplier Name</label>
+          <input type="text" name="new_supplier_name" id="new_supplier_name" placeholder="e.g. Acme Distributors"/>
+        </div>
+        <div class="form-group">
+          <label>Contact Number</label>
+          <input type="text" name="new_supplier_contact" placeholder="+91 98765 43210"/>
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" name="new_supplier_email" placeholder="supplier@example.com"/>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="submit" class="btn btn-yellow">Add Product</button>
+        <button type="button" class="btn btn-ghost" onclick="closeModal('add-modal')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══ RESTOCK IN / OUT MODAL ══════════════════════════════════════ -->
+<div class="modal-overlay" id="stock-modal">
+  <div class="modal">
+    <button class="close-modal" onclick="closeModal('stock-modal')">×</button>
+    <h2 id="stock-modal-title">RESTOCK</h2>
+    <p id="stock-modal-info" style="font-size:12px;color:var(--muted);margin-bottom:20px;"></p>
+    <form method="POST" id="stock-form">
+      <input type="hidden" name="sku" id="stock-sku"/>
+      <div class="form-group">
+        <label>Quantity</label>
+        <input type="number" name="qty" id="stock-qty" required min="1" placeholder="Enter quantity"/>
+      </div>
+      <div class="modal-actions">
+        <button type="submit" class="btn" id="stock-submit-btn">Confirm</button>
+        <button type="button" class="btn btn-ghost" onclick="closeModal('stock-modal')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══ CHANGE PRICE MODAL ══════════════════════════════════════════ -->
+<div class="modal-overlay" id="price-modal">
+  <div class="modal">
+    <button class="close-modal" onclick="closeModal('price-modal')">×</button>
+    <h2>CHANGE PRICE</h2>
+    <p id="price-modal-info" style="font-size:12px;color:var(--muted);margin-bottom:20px;"></p>
+    <form method="POST" action="{{ url_for('change_price') }}">
+      <input type="hidden" name="sku" id="price-sku"/>
+      <div class="form-group">
+        <label>New Price</label>
+        <input type="number" name="new_price" id="price-input" required step="0.01" min="0" placeholder="0.00"/>
+      </div>
+      <div class="modal-actions">
+        <button type="submit" class="btn btn-blue">Update Price</button>
+        <button type="button" class="btn btn-ghost" onclick="closeModal('price-modal')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══ SUPPLIER INFO MODAL ═════════════════════════════════════════ -->
+<div class="modal-overlay" id="supplier-modal">
+  <div class="modal">
+    <button class="close-modal" onclick="closeModal('supplier-modal')">×</button>
+    <h2>SUPPLIER INFO</h2>
+    <p id="supplier-modal-product" style="font-size:12px;color:var(--muted);margin-bottom:20px;"></p>
+    <p id="supplier-modal-name" style="font-size:15px;font-weight:600;"></p>
+  </div>
+</div>
+
+<!-- ══ EDIT PRODUCT MODAL (name · category · supplier only) ════════ -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <button class="close-modal" onclick="closeModal('edit-modal')">×</button>
+    <h2>EDIT PRODUCT</h2>
+    <form method="POST" action="{{ url_for('edit_product') }}">
+      <input type="hidden" name="sku" id="edit-sku"/>
+
+      <div class="form-group">
+        <label>SKU <span style="color:var(--muted);font-size:10px;">(read-only)</span></label>
+        <input type="text" id="edit-sku-display" disabled style="opacity:.45;cursor:not-allowed;"/>
+      </div>
+
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" name="name" id="edit-name" required/>
+      </div>
+
+      <div class="form-group">
+        <label>Category</label>
+        <select name="category" id="edit-category" class="form-control" required>
+          <option value="" disabled selected>Loading…</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Supplier</label>
+        <select name="supplier_id" id="edit-supplier-select" class="form-control">
+          <option value="">— None —</option>
+          {% for s in suppliers %}
+          <option value="{{ s.id }}">{{ s.supplier_name }}</option>
+          {% endfor %}
+          <option value="__new_edit__">＋ Add new supplier</option>
+        </select>
+      </div>
+
+      <div id="edit-new-supplier-fields" style="display:none;">
+        <div class="form-group">
+          <label>Supplier Name</label>
+          <input type="text" name="new_supplier_name" id="edit-new-supplier-name" placeholder="e.g. Acme Distributors"/>
+        </div>
+        <div class="form-group">
+          <label>Contact Number</label>
+          <input type="text" name="new_supplier_contact" placeholder="+91 98765 43210"/>
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" name="new_supplier_email" placeholder="supplier@example.com"/>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="submit" class="btn btn-blue">Save Changes</button>
+        <button type="button" class="btn btn-ghost" onclick="closeModal('edit-modal')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══ DELETE PRODUCT MODAL ════════════════════════════════════════ -->
+<div class="modal-overlay" id="delete-modal">
+  <div class="modal">
+    <button class="close-modal" onclick="closeModal('delete-modal')">×</button>
+    <h2 style="color:var(--red)">DELETE PRODUCT</h2>
+    <p id="delete-product-info" style="font-size:13px;color:var(--text);margin-bottom:8px;"></p>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:24px;">
+      This action is permanent. History is preserved in the activity log.
+    </p>
+    <form method="POST" action="{{ url_for('delete_product') }}">
+      <input type="hidden" name="sku" id="delete-sku"/>
+      <div class="modal-actions">
+        <button type="submit" class="btn btn-red">Confirm Delete</button>
+        <button type="button" class="btn btn-ghost" onclick="closeModal('delete-modal')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+/* ══ MODAL HELPERS ══════════════════════════════════════════════════ */
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+document.querySelectorAll('.modal-overlay').forEach(function(ov) {
+  ov.addEventListener('click', function(e) {
+    if (e.target === this) this.classList.remove('open');
+  });
+});
+
+/* ══ EVENT DELEGATION — products table ══════════════════════════════ */
+document.getElementById('products-table').addEventListener('click', function(e) {
+  var btn = e.target.closest('[data-action]');
+  if (!btn) return;
+
+  var row = btn.closest('tr');
+  if (!row || !row.dataset.sku) return;   // guard against header / empty row
+
+  var sku     = row.dataset.sku;
+  var name    = row.dataset.name;
+  var cat     = row.dataset.category;
+  var price   = parseFloat(row.dataset.price)   || 0;
+  var stock   = parseInt(row.dataset.stock, 10) || 0;
+  var supId   = row.dataset.supplierId           || '';
+  var supName = row.dataset.supplierName         || 'Not assigned';
+
+  switch (btn.dataset.action) {
+    case 'stock-in':  openStockModal('in',  sku, name, stock); break;
+    case 'stock-out': openStockModal('out', sku, name, stock); break;
+    case 'price':     openPriceModal(sku, name, price);        break;
+    case 'supplier':  openSupplierModal(sku, name, supName);   break;
+    case 'edit':      openEditModal(sku, name, cat, supId);    break;
+    case 'delete':    openDeleteModal(sku, name);              break;
+  }
+});
+
+/* ══ CATEGORY HELPERS ═══════════════════════════════════════════════ */
+var categoriesCache = null;
+
+function fetchCategories(cb) {
+  if (categoriesCache !== null) { cb(categoriesCache); return; }
+  fetch('/get_categories')
+    .then(function(r) { return r.json(); })
+    .then(function(cats) { categoriesCache = cats; cb(cats); })
+    .catch(function() { cb([]); });
+}
+
+function buildCategorySelect(selEl, selectedVal) {
+  fetchCategories(function(cats) {
+    var html = '<option value="" disabled' + (selectedVal ? '' : ' selected') + '>Select category…</option>';
+    cats.forEach(function(c) {
+      html += '<option value="' + c + '"' + (c === selectedVal ? ' selected' : '') + '>' + c + '</option>';
+    });
+    html += '<option value="__new__">＋ New category…</option>';
+    selEl.innerHTML = html;
+    selEl.onchange = function() {
+      if (this.value !== '__new__') return;
+      var inp = document.createElement('input');
+      inp.type = 'text'; inp.name = 'category'; inp.required = true;
+      inp.placeholder = 'Enter new category name';
+      inp.style.cssText = 'width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:2px;color:var(--text);font-family:var(--font-mono);font-size:13px;outline:none;';
+      this.parentNode.replaceChild(inp, this); inp.focus();
+    };
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  buildCategorySelect(document.getElementById('add-category'), '');
+});
+
+/* ══ RESTOCK MODAL ══════════════════════════════════════════════════ */
+function openStockModal(type, sku, name, current) {
+  var isIn = (type === 'in');
+  document.getElementById('stock-modal-title').textContent = isIn ? 'RESTOCK IN' : 'RESTOCK OUT';
+  document.getElementById('stock-modal-info').textContent  =
+    name + ' (SKU: ' + sku + ') — Current stock: ' + current;
+  document.getElementById('stock-sku').value = sku;
+  document.getElementById('stock-qty').max   = isIn ? '' : current;
+  document.getElementById('stock-qty').value = '';
+
+  var form = document.getElementById('stock-form');
+  form.action = isIn ? '{{ url_for("restock_in") }}' : '{{ url_for("restock_out") }}';
+
+  var submitBtn = document.getElementById('stock-submit-btn');
+  submitBtn.textContent = isIn ? '▲ Add Stock' : '▼ Remove Stock';
+  submitBtn.className   = 'btn ' + (isIn ? 'btn-green' : 'btn-red');
+
+  openModal('stock-modal');
+}
+
+/* ══ PRICE MODAL ════════════════════════════════════════════════════ */
+function openPriceModal(sku, name, currentPrice) {
+  document.getElementById('price-modal-info').textContent =
+    name + ' (SKU: ' + sku + ') — Current price: ₹' + currentPrice.toFixed(2);
+  document.getElementById('price-sku').value   = sku;
+  document.getElementById('price-input').value = currentPrice.toFixed(2);
+  openModal('price-modal');
+}
+
+/* ══ SUPPLIER INFO MODAL ════════════════════════════════════════════ */
+function openSupplierModal(sku, name, supplier) {
+  document.getElementById('supplier-modal-product').textContent = name + ' (SKU: ' + sku + ')';
+  document.getElementById('supplier-modal-name').textContent =
+    (!supplier || supplier === 'Not assigned') ? '⚠ No supplier linked' : '⬡ ' + supplier;
+  openModal('supplier-modal');
+}
+
+/* ══ EDIT MODAL (name · category · supplier) ════════════════════════ */
+function openEditModal(sku, name, category, supplierId) {
+  document.getElementById('edit-sku').value         = sku;
+  document.getElementById('edit-sku-display').value = sku;
+  document.getElementById('edit-name').value        = name;
+
+  buildCategorySelect(document.getElementById('edit-category'), category);
+
+  var supSel = document.getElementById('edit-supplier-select');
+  supSel.value = supplierId || '';
+  document.getElementById('edit-new-supplier-fields').style.display = 'none';
+
+  openModal('edit-modal');
+}
+
+document.getElementById('edit-supplier-select').addEventListener('change', function() {
+  var show = (this.value === '__new_edit__');
+  document.getElementById('edit-new-supplier-fields').style.display = show ? 'block' : 'none';
+  document.getElementById('edit-new-supplier-name').required = show;
+});
+
+/* ══ DELETE MODAL ═══════════════════════════════════════════════════ */
+function openDeleteModal(sku, name) {
+  document.getElementById('delete-sku').value = sku;
+  document.getElementById('delete-product-info').textContent =
+    'You are about to permanently delete "' + name + '" (SKU: ' + sku + ').';
+  openModal('delete-modal');
+}
+
+/* ══ NEW SUPPLIER TOGGLE (Add Item modal) ═══════════════════════════ */
+function toggleNewSupplier(val) {
+  var show = (val === '__new__');
+  document.getElementById('new-supplier-fields').style.display = show ? 'block' : 'none';
+  document.getElementById('new_supplier_name').required = show;
+}
+</script>
+{% endblock %}

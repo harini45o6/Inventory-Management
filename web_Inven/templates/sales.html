@@ -1,0 +1,953 @@
+{% extends "base.html" %}
+{% block title %}– Sales{% endblock %}
+
+{% block content %}
+<style>
+/* ── Flash messages ── */
+.flash-msg { padding:10px 16px; border-radius:6px; margin-bottom:14px; font-size:13px; font-weight:500; }
+.flash-msg.success { background:#1a3a2a; color:#4ade80; border:1px solid #166534; }
+.flash-msg.error   { background:#3a1a1a; color:#f87171; border:1px solid #991b1b; }
+
+/* ── Summary cards ── */
+.sales-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.sales-card {
+  background: var(--surface, #161616);
+  border: 1px solid var(--border, #2a2a2a);
+  border-radius: 10px;
+  padding: 18px 20px;
+}
+.sales-card .card-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted, #888);
+  margin-bottom: 8px;
+}
+.sales-card .card-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--fg, #eee);
+  letter-spacing: -0.5px;
+}
+.sales-card .card-value.yellow { color: var(--yellow, #facc15); }
+
+/* ── Filter bar ── */
+.filter-bar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 18px;
+}
+.filter-bar input,
+.filter-bar select {
+  background: var(--surface, #1a1a1a);
+  color: var(--fg, #eee);
+  border: 1px solid var(--border, #333);
+  border-radius: 6px;
+  padding: 7px 12px;
+  font-size: 13px;
+  height: 36px;
+  box-sizing: border-box;
+}
+.filter-bar input[type="date"] { width: 148px; }
+.filter-bar input[type="search"] { flex: 1; min-width: 160px; }
+.filter-bar select {
+  width: 140px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+
+/* ── Status badge ── */
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.badge.completed { background:#1a3a2a; color:#4ade80; }
+.badge.refunded  { background:#3a1a1a; color:#f87171; }
+
+/* ── Cart builder ── */
+.cart-table { width:100%; border-collapse:collapse; margin-top:10px; font-size:13px; }
+.cart-table th {
+  background: var(--surface, #1a1a1a);
+  color: var(--muted, #888);
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border, #2a2a2a);
+}
+.cart-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border, #1e1e1e);
+  color: var(--fg, #eee);
+  vertical-align: middle;
+}
+.cart-table td input[type="number"] {
+  width: 64px;
+  background: var(--surface, #111);
+  color: var(--fg, #eee);
+  border: 1px solid var(--border, #333);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+.cart-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border, #2a2a2a);
+  font-size: 14px;
+}
+.cart-total-row strong { font-size: 18px; color: var(--yellow, #facc15); }
+
+/* ── Autocomplete ── */
+.search-wrap { position: relative; }
+#product-search-input,
+#sale-customer-input {
+  width: 100%;
+  background: var(--surface, #1a1a1a);
+  color: var(--fg, #eee);
+  border: 1px solid var(--border, #333);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+#product-search-input:focus,
+#sale-customer-input:focus { outline: none; border-color: var(--yellow, #facc15); }
+
+.autocomplete-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  background: var(--surface, #1c1c1c);
+  border: 1px solid var(--border, #2a2a2a);
+  border-radius: 6px;
+  z-index: 200;
+  max-height: 220px;
+  overflow-y: auto;
+  display: none;
+}
+.autocomplete-list.show { display: block; }
+.ac-item {
+  padding: 9px 12px;
+  font-size: 13px;
+  color: var(--fg, #eee);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border, #222);
+  gap: 8px;
+}
+.ac-item:last-child { border-bottom: none; }
+.ac-item .ac-info { display:flex; align-items:center; gap:6px; flex:1; min-width:0; }
+.ac-item .ac-sku { color: var(--muted, #888); font-size: 11px; }
+.ac-item .ac-price { color: var(--yellow, #facc15); font-size: 12px; white-space:nowrap; }
+.ac-item .ac-stock-low { color: #f87171; font-size: 11px; white-space:nowrap; }
+.ac-item .ac-stock-ok  { color: #4ade80; font-size: 11px; white-space:nowrap; }
+.ac-item .btn-add-item {
+  background: var(--yellow, #facc15);
+  color: #000;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+.ac-item .btn-add-item:hover { opacity: 0.85; }
+.ac-item.ac-existing { cursor: pointer; }
+.ac-item.ac-existing:hover { background: #222; }
+
+/* ── Note dropdown ── */
+#sale-note-select {
+  width: 100%;
+  background: var(--surface, #1a1a1a);
+  color: var(--fg, #eee);
+  border: 1px solid var(--border, #333);
+  border-radius: 6px;
+  padding: 7px 12px;
+  font-size: 13px;
+  height: 36px;
+  box-sizing: border-box;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  cursor: pointer;
+}
+#sale-note-select:focus { outline: none; border-color: var(--yellow, #facc15); }
+
+/* ── Delete row btn ── */
+.btn-del-row {
+  background: transparent;
+  color: #f87171;
+  border: 1px solid #991b1b;
+  border-radius: 4px;
+  padding: 3px 9px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-del-row:hover { background: #3a1a1a; }
+
+/* ── New customer box ── */
+.new-customer-box {
+  background: var(--surface, #1a1a1a);
+  border: 1px solid #6b21a8;
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+.new-customer-box .box-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #c084fc;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+.new-customer-box input {
+  width: 100%;
+  background: var(--surface, #111);
+  color: var(--fg, #eee);
+  border: 1px solid var(--border, #333);
+  border-radius: 6px;
+  padding: 7px 12px;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+.new-customer-box input:focus  { outline: none; border-color: #c084fc; }
+.new-customer-box input.field-error { border-color: #f87171; }
+
+/* ── Customer info modal ── */
+.cinfo-modal {
+  background: var(--surface, #161616);
+  border: 1px solid var(--border, #2a2a2a);
+  border-radius: 12px;
+  padding: 24px 28px;
+  max-width: 380px;
+  width: 90%;
+}
+.cinfo-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border, #222);
+  font-size: 13px;
+}
+.cinfo-row:last-child { border-bottom: none; }
+.cinfo-label { color: var(--muted, #888); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+.cinfo-value { color: var(--fg, #eee); font-weight: 500; }
+
+/* ── Badges ── */
+.badge-existing {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #1a3a2a; color: #4ade80;
+  border: 1px solid #166534; border-radius: 20px;
+  padding: 3px 12px; font-size: 11px; font-weight: 600;
+}
+.badge-new {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #2a1a3a; color: #c084fc;
+  border: 1px solid #6b21a8; border-radius: 20px;
+  padding: 3px 12px; font-size: 11px; font-weight: 600;
+}
+</style>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}{% for cat, msg in messages %}
+    <div class="flash-msg {{ cat }}">{{ msg }}</div>
+  {% endfor %}{% endif %}
+{% endwith %}
+
+<div class="topbar">
+  <h1>SALES</h1>
+  <div style="display:flex;gap:10px;">
+    <button class="btn btn-yellow" onclick="openModal('add-sale-modal')">＋ New Sale</button>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- ── Summary cards ── -->
+  <div class="sales-cards">
+    <div class="sales-card">
+      <div class="card-label">Today's Sales</div>
+      <div class="card-value yellow">{{ today_count }}</div>
+    </div>
+    <div class="sales-card">
+      <div class="card-label">Today's Revenue</div>
+      <div class="card-value yellow">₹{{ "%.2f"|format(today_revenue) }}</div>
+    </div>
+    <div class="sales-card">
+      <div class="card-label">Total Sales</div>
+      <div class="card-value">{{ total_sales }}</div>
+    </div>
+    <div class="sales-card">
+      <div class="card-label">Total Revenue</div>
+      <div class="card-value">₹{{ "%.2f"|format(total_revenue) }}</div>
+    </div>
+  </div>
+
+  <!-- ── Filter bar ── -->
+  <form method="GET" action="{{ url_for('sales') }}">
+    <div class="filter-bar">
+      <input type="search" name="search" placeholder="Search invoice / customer…" value="{{ search }}">
+      <input type="date" name="date_from" value="{{ date_from }}" title="From date">
+      <input type="date" name="date_to"   value="{{ date_to }}"   title="To date">
+      <select name="status">
+        <option value="">All statuses</option>
+        <option value="completed" {{ 'selected' if status=='completed' }}>Completed</option>
+        <option value="refunded"  {{ 'selected' if status=='refunded'  }}>Refunded</option>
+      </select>
+      <button type="submit" class="btn btn-yellow" style="height:36px;padding:0 16px;">Filter</button>
+      <a href="{{ url_for('sales') }}" class="btn btn-ghost" style="height:36px;padding:0 14px;line-height:36px;">Clear</a>
+    </div>
+  </form>
+
+  <!-- ── Sales table ── -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Invoice</th>
+          <th>Customer</th>
+          <th>Date</th>
+          <th>Items</th>
+          <th>Note</th>
+          <th>Total</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="sales-tbody">
+        {% for s in sales_list %}
+        <tr>
+          <td><span class="sku-tag">{{ s.invoice_no }}</span></td>
+          <td>{{ s.customer or '—' }}</td>
+          <td style="color:var(--muted);font-size:12px">
+            {{ s.sale_date.strftime('%d %b %Y, %I:%M %p') if s.sale_date else '—' }}
+          </td>
+          <td style="color:var(--muted);font-size:12px">{{ s.item_count or '—' }}</td>
+          <td style="color:var(--muted);font-size:12px">{{ s.note or '—' }}</td>
+          <td style="color:var(--yellow,#facc15);font-weight:600">
+            ₹{{ "%.2f"|format(s.total) }}
+          </td>
+          <td><span class="badge {{ s.status }}">{{ s.status }}</span></td>
+          <td>
+            <div class="action-btns">
+              <a href="{{ url_for('sales_invoice', sale_id=s.id) }}"
+                 class="btn btn-ghost action-btn" target="_blank">🧾 Invoice</a>
+              {% if s.customer_id %}
+              <button class="btn btn-ghost action-btn"
+                onclick="showCustomerInfo({{ s.customer_id }}, '{{ s.customer|e }}', '{{ s.customer_phone or '' }}', '{{ s.customer_email or '' }}')">
+                👤 Info
+              </button>
+              {% endif %}
+              {% if s.status == 'completed' %}
+              <button class="btn action-btn" style="background:#3a1a1a;color:#f87171;border:1px solid #991b1b;"
+                onclick="confirmRefund({{ s.id }}, '{{ s.invoice_no }}', this)">
+                ↩ Refund
+              </button>
+              {% endif %}
+              {% if s.status == 'refunded' %}
+              <button class="btn btn-red action-btn"
+                onclick="confirmDeleteSale({{ s.id }}, '{{ s.invoice_no }}', this)">
+                ✕ Delete
+              </button>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr id="empty-row">
+          <td colspan="8" style="text-align:center;color:var(--muted);padding:40px;">
+            No sales found. Add one to get started.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div><!-- /content -->
+
+
+<!-- ══════════════════════════════════════════════════
+     ADD SALE MODAL
+════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="add-sale-modal">
+  <div class="modal" style="max-width:660px;width:95%;">
+    <button class="close-modal" onclick="resetAndClose()">×</button>
+    <h2>NEW SALE</h2>
+
+    <!-- Customer search -->
+    <div class="form-group" style="margin-bottom:10px;">
+      <label>Customer <span style="color:var(--muted);font-size:11px">(optional)</span></label>
+      <div class="search-wrap" id="customer-search-wrap">
+        <input type="text" id="sale-customer-input"
+               placeholder="Type customer name to search…"
+               autocomplete="off"
+               oninput="searchCustomers(this.value)">
+        <div class="autocomplete-list" id="customer-ac-list"></div>
+      </div>
+      <div id="customer-badge" style="margin-top:6px;display:none;"></div>
+    </div>
+
+    <!-- New customer fields — appear automatically when no match, no button -->
+    <div id="new-customer-fields" style="display:none;margin-bottom:14px;">
+      <div class="new-customer-box">
+        <div class="box-label">＋ New Customer — Phone &amp; Email Required *</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="form-group" style="margin:0">
+            <label style="font-size:11px;color:var(--muted);">
+              Phone <span style="color:#f87171;">*</span>
+            </label>
+            <input type="text" id="new-customer-phone"
+                   placeholder="e.g. 9876543210"
+                   oninput="clearFieldError(this)">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="font-size:11px;color:var(--muted);">
+              Email <span style="color:#f87171;">*</span>
+            </label>
+            <input type="text" id="new-customer-email"
+                   placeholder="e.g. name@email.com"
+                   oninput="clearFieldError(this)">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Note -->
+    <div class="form-group" style="margin-bottom:16px;">
+      <label>Note <span style="color:var(--muted);font-size:11px">(optional)</span></label>
+      <select id="sale-note-select">
+        <option value="">— Select a note —</option>
+        <option value="Walk-in customer">Walk-in customer</option>
+        <option value="Online order">Online order</option>
+        <option value="Bulk purchase">Bulk purchase</option>
+        <option value="Wholesale">Wholesale</option>
+        <option value="Exchange">Exchange</option>
+        <option value="Gift">Gift</option>
+        <option value="Corporate order">Corporate order</option>
+        <option value="Loyalty customer">Loyalty customer</option>
+        <option value="Phone order">Phone order</option>
+        <option value="Repeat customer">Repeat customer</option>
+      </select>
+    </div>
+
+    <!-- Product search -->
+    <div class="form-group">
+      <label>Add Product</label>
+      <div class="search-wrap">
+        <input type="text" id="product-search-input" placeholder="Search by name or SKU…"
+               autocomplete="off" oninput="searchProducts(this.value)">
+        <div class="autocomplete-list" id="ac-list"></div>
+      </div>
+    </div>
+
+    <!-- Cart table -->
+    <div id="cart-wrap" style="display:none;">
+      <table class="cart-table">
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>SKU</th>
+            <th>Unit Price</th>
+            <th>Qty</th>
+            <th>Line Total</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="cart-body"></tbody>
+      </table>
+      <div class="cart-total-row">
+        <span style="color:var(--muted);font-size:13px;">Grand Total</span>
+        <strong id="cart-grand-total">₹0.00</strong>
+      </div>
+    </div>
+
+    <div id="cart-empty-msg" style="text-align:center;color:var(--muted);font-size:13px;padding:20px 0;">
+      Search and add products above to build the sale.
+    </div>
+
+    <div class="modal-actions" style="margin-top:20px;">
+      <button class="btn btn-yellow" onclick="submitSale()">✓ Confirm Sale</button>
+      <button class="btn btn-ghost" onclick="resetAndClose()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════
+     CUSTOMER INFO MODAL
+════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="customer-info-modal">
+  <div class="cinfo-modal">
+    <button class="close-modal" onclick="closeModal('customer-info-modal')">×</button>
+    <h2 style="margin-bottom:18px;font-size:16px;">CUSTOMER INFO</h2>
+    <div class="cinfo-row">
+      <span class="cinfo-label">Name</span>
+      <span class="cinfo-value" id="ci-name">—</span>
+    </div>
+    <div class="cinfo-row">
+      <span class="cinfo-label">Customer ID</span>
+      <span class="cinfo-value" id="ci-id">—</span>
+    </div>
+    <div class="cinfo-row">
+      <span class="cinfo-label">Phone</span>
+      <span class="cinfo-value" id="ci-phone">—</span>
+    </div>
+    <div class="cinfo-row">
+      <span class="cinfo-label">Email</span>
+      <span class="cinfo-value" id="ci-email">—</span>
+    </div>
+  </div>
+</div>
+
+
+<script>
+/* ══════════════════════════════════════════
+   MODAL HELPERS
+══════════════════════════════════════════ */
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  o.addEventListener('click', e => {
+    if (e.target === o) {
+      if (o.id === 'add-sale-modal') resetAndClose();
+      else closeModal(o.id);
+    }
+  });
+});
+
+/* ══════════════════════════════════════════
+   CUSTOMER INFO MODAL
+══════════════════════════════════════════ */
+function showCustomerInfo(id, name, phone, email) {
+  document.getElementById('ci-id').textContent    = '#' + id;
+  document.getElementById('ci-name').textContent  = name  || '—';
+  document.getElementById('ci-phone').textContent = phone || '—';
+  document.getElementById('ci-email').textContent = email || '—';
+  openModal('customer-info-modal');
+}
+
+/* ══════════════════════════════════════════
+   RESET & CLOSE
+══════════════════════════════════════════ */
+function resetAndClose() {
+  cart             = [];
+  selectedCustomer = null;
+  customerIsNew    = false;
+  renderCart();
+  document.getElementById('sale-customer-input').value  = '';
+  document.getElementById('sale-note-select').value     = '';
+  document.getElementById('product-search-input').value = '';
+  document.getElementById('ac-list').classList.remove('show');
+  document.getElementById('customer-ac-list').classList.remove('show');
+  document.getElementById('customer-badge').style.display      = 'none';
+  document.getElementById('customer-badge').innerHTML          = '';
+  document.getElementById('new-customer-fields').style.display = 'none';
+
+  const phoneEl = document.getElementById('new-customer-phone');
+  const emailEl = document.getElementById('new-customer-email');
+  phoneEl.value = '';
+  emailEl.value = '';
+  phoneEl.classList.remove('field-error');
+  emailEl.classList.remove('field-error');
+
+  closeModal('add-sale-modal');
+}
+
+function clearFieldError(el) { el.classList.remove('field-error'); }
+
+/* ══════════════════════════════════════════
+   CUSTOMER SEARCH
+══════════════════════════════════════════ */
+let selectedCustomer = null;
+let customerIsNew    = false;
+let custTimer;
+let custResults      = [];
+
+function searchCustomers(q) {
+  clearTimeout(custTimer);
+  selectedCustomer = null;
+  customerIsNew    = false;
+  document.getElementById('customer-badge').style.display      = 'none';
+  document.getElementById('new-customer-fields').style.display = 'none';
+
+  const phoneEl = document.getElementById('new-customer-phone');
+  const emailEl = document.getElementById('new-customer-email');
+  phoneEl.value = '';
+  emailEl.value = '';
+  phoneEl.classList.remove('field-error');
+  emailEl.classList.remove('field-error');
+
+  const list = document.getElementById('customer-ac-list');
+  if (q.length < 1) { list.classList.remove('show'); return; }
+
+  custTimer = setTimeout(() => {
+    fetch('/search_customers?q=' + encodeURIComponent(q))
+      .then(r => r.json())
+      .then(results => {
+        custResults = results;
+
+        if (!results.length) {
+          // No match → immediately show new customer fields, no button
+          list.classList.remove('show');
+          confirmNewCustomer(q);
+          return;
+        }
+
+        list.innerHTML = results.map((c, idx) => `
+          <div class="ac-item ac-existing" data-cidx="${idx}">
+            <div class="ac-info">
+              <span style="font-weight:500;">${c.name}</span>
+              <span class="ac-sku">${c.phone || ''}</span>
+            </div>
+            <span class="ac-stock-ok" style="font-size:11px;white-space:nowrap;">
+              ✓ Existing · #${c.id}
+            </span>
+          </div>`).join('');
+        list.classList.add('show');
+      });
+  }, 200);
+}
+
+document.getElementById('customer-ac-list').addEventListener('click', function(e) {
+  e.stopPropagation();
+  const item = e.target.closest('.ac-item.ac-existing');
+  if (item) {
+    const idx = parseInt(item.dataset.cidx, 10);
+    if (!isNaN(idx) && custResults[idx]) selectExistingCustomer(custResults[idx]);
+  }
+});
+
+function selectExistingCustomer(c) {
+  selectedCustomer = c;
+  customerIsNew    = false;
+  document.getElementById('sale-customer-input').value          = c.name;
+  document.getElementById('customer-ac-list').classList.remove('show');
+  document.getElementById('new-customer-fields').style.display  = 'none';
+
+  const badge = document.getElementById('customer-badge');
+  badge.innerHTML = `<span class="badge-existing">
+    ✓ Existing Customer · ID #${c.id}${c.phone ? ' · ' + c.phone : ''}
+  </span>`;
+  badge.style.display = 'block';
+}
+
+function confirmNewCustomer(name) {
+  customerIsNew    = true;
+  selectedCustomer = null;
+  document.getElementById('customer-ac-list').classList.remove('show');
+  document.getElementById('new-customer-fields').style.display = 'block';
+  // Auto-focus phone field
+  setTimeout(() => document.getElementById('new-customer-phone').focus(), 50);
+
+  const badge = document.getElementById('customer-badge');
+  badge.innerHTML = `<span class="badge-new">
+    ＋ New Customer — phone &amp; email required
+  </span>`;
+  badge.style.display = 'block';
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#customer-search-wrap'))
+    document.getElementById('customer-ac-list').classList.remove('show');
+  if (!e.target.closest('.search-wrap') || e.target.closest('#customer-search-wrap'))
+    document.getElementById('ac-list').classList.remove('show');
+});
+
+/* ══════════════════════════════════════════
+   CART STATE
+══════════════════════════════════════════ */
+let cart = [];
+
+function renderCart() {
+  const wrap  = document.getElementById('cart-wrap');
+  const empty = document.getElementById('cart-empty-msg');
+  const tbody = document.getElementById('cart-body');
+
+  if (cart.length === 0) {
+    wrap.style.display  = 'none';
+    empty.style.display = 'block';
+    return;
+  }
+  wrap.style.display  = 'block';
+  empty.style.display = 'none';
+
+  tbody.innerHTML = cart.map((item, i) => `
+    <tr id="cart-row-${i}">
+      <td>${item.name}</td>
+      <td><span class="sku-tag">${item.sku}</span></td>
+      <td>₹${item.unit_price.toFixed(2)}</td>
+      <td>
+        <input type="number" min="1" max="${item.stock}" value="${item.qty}"
+               onchange="updateQty(${i}, this.value)">
+      </td>
+      <td style="color:var(--yellow,#facc15);font-weight:600">
+        ₹${(item.unit_price * item.qty).toFixed(2)}
+      </td>
+      <td>
+        <button class="btn-del-row" onclick="removeItem(${i})">✕ Del</button>
+      </td>
+    </tr>`).join('');
+
+  const total = cart.reduce((s, i) => s + i.unit_price * i.qty, 0);
+  document.getElementById('cart-grand-total').textContent = '₹' + total.toFixed(2);
+}
+
+function addToCart(product) {
+  const unit_price = parseFloat(product.unit_price ?? product.price ?? 0);
+  const existing   = cart.find(i => i.sku === product.sku);
+  if (existing) {
+    if (existing.qty < product.stock) existing.qty++;
+    else alert(`Max stock reached for "${product.name}". Available: ${product.stock}`);
+  } else {
+    cart.push({ sku: product.sku, name: product.name, unit_price, stock: parseInt(product.stock, 10), qty: 1 });
+  }
+  renderCart();
+  document.getElementById('product-search-input').value = '';
+  document.getElementById('ac-list').classList.remove('show');
+}
+
+function updateQty(index, val) {
+  cart[index].qty = Math.max(1, Math.min(parseInt(val) || 1, cart[index].stock));
+  renderCart();
+}
+
+function removeItem(index) {
+  cart.splice(index, 1);
+  renderCart();
+}
+
+/* ══════════════════════════════════════════
+   PRODUCT AUTOCOMPLETE
+══════════════════════════════════════════ */
+let acTimer;
+let acResults = [];
+
+function searchProducts(q) {
+  clearTimeout(acTimer);
+  const list = document.getElementById('ac-list');
+  if (q.length < 2) { list.classList.remove('show'); return; }
+  acTimer = setTimeout(() => {
+    fetch('/search_products?q=' + encodeURIComponent(q))
+      .then(r => r.json())
+      .then(results => {
+        if (!results.length) { list.classList.remove('show'); return; }
+        acResults = results;
+        list.innerHTML = results.map((p, idx) => {
+          const stockClass = p.stock < 10 ? 'ac-stock-low' : 'ac-stock-ok';
+          return `
+          <div class="ac-item">
+            <div class="ac-info">
+              <span>${p.name}</span>
+              <span class="ac-sku">${p.sku}</span>
+            </div>
+            <span class="${stockClass}">Stock: ${p.stock}</span>
+            <span class="ac-price">₹${p.price.toFixed(2)}</span>
+            <button class="btn-add-item" data-idx="${idx}">＋ Add</button>
+          </div>`;
+        }).join('');
+        list.classList.add('show');
+      });
+  }, 220);
+}
+
+document.getElementById('ac-list').addEventListener('click', function(e) {
+  e.stopPropagation();
+  const btn = e.target.closest('.btn-add-item');
+  if (btn) {
+    const idx = parseInt(btn.dataset.idx, 10);
+    if (!isNaN(idx) && acResults[idx]) addToCart(acResults[idx]);
+  }
+});
+
+/* ══════════════════════════════════════════
+   SUBMIT SALE
+══════════════════════════════════════════ */
+function submitSale() {
+  if (cart.length === 0) {
+    alert('Add at least one product to the sale.');
+    return;
+  }
+
+  // Block submission if new customer fields shown but not filled
+  if (customerIsNew) {
+    const phoneEl = document.getElementById('new-customer-phone');
+    const emailEl = document.getElementById('new-customer-email');
+    const phone   = phoneEl.value.trim();
+    const email   = emailEl.value.trim();
+    let hasError  = false;
+
+    if (!phone) { phoneEl.classList.add('field-error'); hasError = true; }
+    if (!email) { emailEl.classList.add('field-error'); hasError = true; }
+
+    if (hasError) {
+      alert('Phone and email are required for new customers.');
+      if (!phone) phoneEl.focus();
+      return;
+    }
+  }
+
+  const customerName = document.getElementById('sale-customer-input').value.trim();
+  const note         = document.getElementById('sale-note-select').value;
+
+  const payload = {
+    note,
+    items: cart.map(i => ({
+      sku:        i.sku,
+      name:       i.name,
+      qty:        i.qty,
+      unit_price: i.unit_price,
+    }))
+  };
+
+  if (selectedCustomer) {
+    // Existing: send their ID, skip re-insert
+    payload.customer_id   = selectedCustomer.id;
+    payload.customer_name = selectedCustomer.name;
+  } else if (customerName) {
+    // New: send name + phone + email for insertion
+    payload.customer_name  = customerName;
+    payload.customer_phone = document.getElementById('new-customer-phone').value.trim();
+    payload.customer_email = document.getElementById('new-customer-email').value.trim();
+  }
+  // else: walk-in, no customer data sent
+
+  fetch('{{ url_for("sales_add") }}', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(payload),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.error) { alert('Error: ' + data.error); return; }
+
+    const tbody    = document.getElementById('sales-tbody');
+    const emptyRow = document.getElementById('empty-row');
+    if (emptyRow) emptyRow.remove();
+
+    const now     = new Date();
+    const dateStr = now.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })
+                  + ', ' + now.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:true });
+
+    const total     = cart.reduce((s, i) => s + i.unit_price * i.qty, 0);
+    const itemCount = cart.reduce((s, i) => s + i.qty, 0);
+    const customer  = data.customer || '—';
+    const noteDisp  = note          || '—';
+
+    const infoBtn = data.customer_id
+      ? `<button class="btn btn-ghost action-btn"
+           onclick="showCustomerInfo(${data.customer_id},
+             '${(data.customer      ||'').replace(/'/g,"\\'")}',
+             '${(data.customer_phone||'').replace(/'/g,"\\'")}',
+             '${(data.customer_email||'').replace(/'/g,"\\'")}')">
+           👤 Info
+         </button>`
+      : '';
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="sku-tag">${data.invoice_no}</span></td>
+      <td>${customer}</td>
+      <td style="color:var(--muted);font-size:12px">${dateStr}</td>
+      <td style="color:var(--muted);font-size:12px">${itemCount}</td>
+      <td style="color:var(--muted);font-size:12px">${noteDisp}</td>
+      <td style="color:var(--yellow,#facc15);font-weight:600">₹${total.toFixed(2)}</td>
+      <td><span class="badge completed">completed</span></td>
+      <td>
+        <div class="action-btns">
+          <a href="/sales/${data.sale_id}/invoice" class="btn btn-ghost action-btn" target="_blank">🧾 Invoice</a>
+          ${infoBtn}
+        </div>
+      </td>`;
+    tbody.insertBefore(tr, tbody.firstChild);
+
+    updateSummaryCards(total);
+    window.open('/sales/' + data.sale_id + '/invoice', '_blank');
+    resetAndClose();
+  })
+  .catch(() => alert('Something went wrong. Please try again.'));
+}
+
+/* ══════════════════════════════════════════
+   REFUND & DELETE SALE
+══════════════════════════════════════════ */
+function confirmRefund(saleId, invoiceNo, btn) {
+  if (!confirm(`Refund ${invoiceNo}?\n\nThis will restore the stock for all items and mark the sale as refunded.`)) return;
+  btn.disabled = true;
+  btn.textContent = '…';
+  fetch(`/sales/${saleId}/refund`, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { alert('Error: ' + data.error); btn.disabled = false; btn.textContent = '↩ Refund'; return; }
+      // Update badge in row
+      const row = btn.closest('tr');
+      row.querySelector('.badge').className   = 'badge refunded';
+      row.querySelector('.badge').textContent = 'refunded';
+      // Swap Refund btn → Delete btn
+      btn.outerHTML = `<button class="btn btn-red action-btn"
+        onclick="confirmDeleteSale(${saleId}, '${invoiceNo}', this)">✕ Delete</button>`;
+    })
+    .catch(() => { alert('Something went wrong.'); btn.disabled = false; btn.textContent = '↩ Refund'; });
+}
+
+function confirmDeleteSale(saleId, invoiceNo, btn) {
+  if (!confirm(`Permanently delete ${invoiceNo}?\n\nThis cannot be undone. Stock was already restored when refunded.`)) return;
+  btn.disabled = true;
+  btn.textContent = '…';
+  fetch(`/sales/${saleId}/delete`, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { alert('Error: ' + data.error); btn.disabled = false; btn.textContent = '✕ Delete'; return; }
+      btn.closest('tr').remove();
+    })
+    .catch(() => { alert('Something went wrong.'); btn.disabled = false; btn.textContent = '✕ Delete'; });
+}
+
+function updateSummaryCards(saleTotal) {
+  const todayCountEl = document.querySelector('.sales-cards .sales-card:nth-child(1) .card-value');
+  if (todayCountEl) todayCountEl.textContent = parseInt(todayCountEl.textContent || '0') + 1;
+
+  const todayRevEl = document.querySelector('.sales-cards .sales-card:nth-child(2) .card-value');
+  if (todayRevEl) {
+    const curr = parseFloat(todayRevEl.textContent.replace('₹','').replace(',','')) || 0;
+    todayRevEl.textContent = '₹' + (curr + saleTotal).toFixed(2);
+  }
+
+  const totalSalesEl = document.querySelector('.sales-cards .sales-card:nth-child(3) .card-value');
+  if (totalSalesEl) totalSalesEl.textContent = parseInt(totalSalesEl.textContent || '0') + 1;
+
+  const totalRevEl = document.querySelector('.sales-cards .sales-card:nth-child(4) .card-value');
+  if (totalRevEl) {
+    const curr = parseFloat(totalRevEl.textContent.replace('₹','').replace(',','')) || 0;
+    totalRevEl.textContent = '₹' + (curr + saleTotal).toFixed(2);
+  }
+}
+</script>
+{% endblock %}

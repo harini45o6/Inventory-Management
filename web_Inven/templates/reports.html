@@ -1,0 +1,623 @@
+{% extends "base.html" %}
+{% block title %}– Reports{% endblock %}
+
+{% block content %}
+<style>
+/* ── Flash messages ── */
+.flash-msg { padding:10px 16px; border-radius:6px; margin-bottom:14px; font-size:13px; font-weight:500; }
+.flash-msg.success { background:#1a3a2a; color:#4ade80; border:1px solid #166534; }
+.flash-msg.error   { background:#3a1a1a; color:#f87171; border:1px solid #991b1b; }
+
+/* ── Report tabs ── */
+.report-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--border, #2a2a2a);
+  padding-bottom: 0;
+}
+.report-tab {
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted, #888);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  margin-bottom: -1px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+.report-tab:hover { color: var(--fg, #eee); }
+.report-tab.active {
+  color: var(--yellow, #facc15);
+  border-bottom-color: var(--yellow, #facc15);
+}
+
+/* ── Report panels ── */
+.report-panel { display: none; }
+.report-panel.active { display: block; }
+
+/* ── Filter bar ── */
+.report-filter {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.report-filter input,
+.report-filter select {
+  background: var(--surface, #1a1a1a);
+  color: var(--fg, #eee);
+  border: 1px solid var(--border, #333);
+  border-radius: 6px;
+  padding: 7px 12px;
+  font-size: 13px;
+  height: 36px;
+  box-sizing: border-box;
+}
+.report-filter input[type="date"]   { width: 148px; }
+.report-filter input[type="month"]  { width: 148px; }
+.report-filter select { width: 150px; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center; }
+
+/* ── Summary cards row ── */
+.report-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.report-card {
+  background: var(--surface, #161616);
+  border: 1px solid var(--border, #2a2a2a);
+  border-radius: 10px;
+  padding: 16px 18px;
+}
+.report-card .rc-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted, #888);
+  margin-bottom: 6px;
+}
+.report-card .rc-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--fg, #eee);
+}
+.report-card .rc-value.yellow { color: var(--yellow, #facc15); }
+.report-card .rc-value.green  { color: #4ade80; }
+.report-card .rc-value.red    { color: #f87171; }
+
+/* ── Shared table styles ── */
+.report-table-wrap {
+  border: 1px solid var(--border, #2a2a2a);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.report-table-wrap table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.report-table-wrap thead th {
+  background: var(--surface, #1a1a1a);
+  color: var(--muted, #888);
+  padding: 11px 14px;
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border, #2a2a2a);
+}
+.report-table-wrap tbody td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border, #1e1e1e);
+  color: var(--fg, #eee);
+}
+.report-table-wrap tbody tr:last-child td { border-bottom: none; }
+.report-table-wrap tbody tr:hover { background: rgba(255,255,255,0.02); }
+.text-right { text-align: right !important; }
+.text-muted { color: var(--muted, #888) !important; font-size: 12px; }
+
+/* ── Section heading ── */
+.section-heading {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted, #888);
+  margin: 24px 0 10px 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border, #2a2a2a);
+}
+
+/* ── Stock level indicators ── */
+.stock-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+.stock-badge.critical { background:#3a1a1a; color:#f87171; }
+.stock-badge.low      { background:#3a2a0a; color:#fbbf24; }
+.stock-badge.ok       { background:#1a3a2a; color:#4ade80; }
+
+/* ── Progress bar ── */
+.progress-bar-wrap { background: var(--border, #2a2a2a); border-radius: 4px; height: 6px; min-width: 80px; }
+.progress-bar-fill { height: 6px; border-radius: 4px; background: var(--yellow, #facc15); transition: width 0.3s; }
+.progress-bar-fill.green { background: #4ade80; }
+.progress-bar-fill.red   { background: #f87171; }
+
+/* ── Empty state ── */
+.report-empty {
+  text-align: center;
+  color: var(--muted, #888);
+  padding: 48px 20px;
+  font-size: 13px;
+}
+
+/* ── Print ── */
+@media print {
+  .topbar, .report-tabs, .report-filter, .no-print { display: none !important; }
+  .report-panel { display: block !important; }
+  body { background: #fff !important; color: #000 !important; }
+}
+</style>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}{% for cat, msg in messages %}
+    <div class="flash-msg {{ cat }}">{{ msg }}</div>
+  {% endfor %}{% endif %}
+{% endwith %}
+
+<div class="topbar">
+  <h1>REPORTS</h1>
+  <button class="btn btn-yellow no-print" onclick="window.print()">🖨 Print Report</button>
+</div>
+
+<div class="content">
+
+  <!-- ── Tabs ── -->
+  <div class="report-tabs">
+    <button class="report-tab active" onclick="switchTab('daily')">📅 Daily Report</button>
+    <button class="report-tab"        onclick="switchTab('monthly')">📆 Monthly Report</button>
+    <button class="report-tab"        onclick="switchTab('purchase')">🛒 Purchase Report</button>
+    <button class="report-tab"        onclick="switchTab('stock')">📦 Stock Report</button>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       DAILY REPORT
+  ══════════════════════════════════════════ -->
+  <div class="report-panel active" id="panel-daily">
+
+    <form method="GET" action="{{ url_for('reports') }}">
+      <input type="hidden" name="tab" value="daily">
+      <div class="report-filter">
+        <input type="date" name="daily_date" value="{{ daily_date }}">
+        <button type="submit" class="btn btn-yellow" style="height:36px;padding:0 16px;">View</button>
+        <a href="{{ url_for('reports') }}?tab=daily" class="btn btn-ghost" style="height:36px;padding:0 14px;line-height:36px;">Today</a>
+      </div>
+    </form>
+
+    <!-- Summary cards -->
+    <div class="report-cards">
+      <div class="report-card">
+        <div class="rc-label">Total Sales</div>
+        <div class="rc-value yellow">{{ daily.total_sales }}</div>
+      </div>
+      <div class="report-card">
+        <div class="rc-label">Revenue</div>
+        <div class="rc-value yellow">₹{{ "%.2f"|format(daily.revenue) }}</div>
+      </div>
+      <div class="report-card">
+        <div class="rc-label">Items Sold</div>
+        <div class="rc-value">{{ daily.items_sold }}</div>
+      </div>
+      <div class="report-card">
+        <div class="rc-label">Avg Order Value</div>
+        <div class="rc-value">₹{{ "%.2f"|format(daily.avg_order) }}</div>
+      </div>
+    </div>
+
+    <!-- Transactions table -->
+    <div class="section-heading">Transactions on {{ daily_date }}</div>
+    <div class="report-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Invoice</th>
+            <th>Customer</th>
+            <th>Items</th>
+            <th>Time</th>
+            <th>Status</th>
+            <th class="text-right">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in daily.transactions %}
+          <tr>
+            <td><span class="sku-tag">{{ row.invoice_no }}</span></td>
+            <td>{{ row.customer or '—' }}</td>
+            <td class="text-muted">{{ row.item_count }} item(s)</td>
+            <td class="text-muted">{{ row.sale_date.strftime('%I:%M %p') if row.sale_date else '—' }}</td>
+            <td><span class="badge {{ row.status }}">{{ row.status }}</span></td>
+            <td class="text-right" style="color:var(--yellow,#facc15);font-weight:600">
+              ₹{{ "%.2f"|format(row.total) }}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="report-empty">No transactions found for this date.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Top products of the day -->
+    {% if daily.top_products %}
+    <div class="section-heading">Top Products Sold</div>
+    <div class="report-table-wrap">
+      <table>
+        <thead>
+          <tr><th>SKU</th><th>Product</th><th class="text-right">Qty Sold</th><th class="text-right">Revenue</th></tr>
+        </thead>
+        <tbody>
+          {% for p in daily.top_products %}
+          <tr>
+            <td><span class="sku-tag">{{ p.sku }}</span></td>
+            <td>{{ p.name }}</td>
+            <td class="text-right">{{ p.qty }}</td>
+            <td class="text-right" style="color:var(--yellow,#facc15);font-weight:600">₹{{ "%.2f"|format(p.revenue) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       MONTHLY REPORT
+  ══════════════════════════════════════════ -->
+  <div class="report-panel" id="panel-monthly">
+
+    <form method="GET" action="{{ url_for('reports') }}">
+      <input type="hidden" name="tab" value="monthly">
+      <div class="report-filter">
+        <input type="month" name="monthly_month" value="{{ monthly_month }}">
+        <button type="submit" class="btn btn-yellow" style="height:36px;padding:0 16px;">View</button>
+        <a href="{{ url_for('reports') }}?tab=monthly" class="btn btn-ghost" style="height:36px;padding:0 14px;line-height:36px;">This Month</a>
+      </div>
+    </form>
+
+    <!-- Summary cards -->
+    <div class="report-cards">
+      <div class="report-card">
+        <div class="rc-label">Total Sales</div>
+        <div class="rc-value yellow">{{ monthly.total_sales }}</div>
+      </div>
+      <div class="report-card">
+        <div class="rc-label">Monthly Revenue</div>
+        <div class="rc-value yellow">₹{{ "%.2f"|format(monthly.revenue) }}</div>
+      </div>
+      <div class="report-card">
+        <div class="rc-label">Items Sold</div>
+        <div class="rc-value">{{ monthly.items_sold }}</div>
+      </div>
+      <div class="report-card">
+        <div class="rc-label">Active Days</div>
+        <div class="rc-value green">{{ monthly.active_days }}</div>
+      </div>
+    </div>
+
+    <!-- Daily breakdown -->
+    <div class="section-heading">Daily Breakdown</div>
+    <div class="report-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th class="text-right">Sales Count</th>
+            <th class="text-right">Items Sold</th>
+            <th class="text-right">Revenue</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in monthly.daily_breakdown %}
+          <tr>
+            <td>{{ row.sale_day.strftime('%d %b %Y') if row.sale_day else row.day }}</td>
+            <td class="text-right">{{ row.sales_count }}</td>
+            <td class="text-right">{{ row.items_sold }}</td>
+            <td class="text-right" style="color:var(--yellow,#facc15);font-weight:600">
+              ₹{{ "%.2f"|format(row.revenue) }}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="report-empty">No sales data for this month.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Top products of month -->
+    {% if monthly.top_products %}
+    <div class="section-heading">Top Products This Month</div>
+    <div class="report-table-wrap">
+      <table>
+        <thead>
+          <tr><th>SKU</th><th>Product</th><th>Category</th><th class="text-right">Qty Sold</th><th class="text-right">Revenue</th></tr>
+        </thead>
+        <tbody>
+          {% for p in monthly.top_products %}
+          <tr>
+            <td><span class="sku-tag">{{ p.sku }}</span></td>
+            <td>{{ p.name }}</td>
+            <td class="text-muted">{{ p.category }}</td>
+            <td class="text-right">{{ p.qty }}</td>
+            <td class="text-right" style="color:var(--yellow,#facc15);font-weight:600">₹{{ "%.2f"|format(p.revenue) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       PURCHASE REPORT
+  ══════════════════════════════════════════ -->
+  <div class="report-panel" id="panel-purchase">
+
+    <form method="GET" action="{{ url_for('reports') }}">
+      <input type="hidden" name="tab" value="purchase">
+      <div class="report-filter">
+        <input type="date" name="pur_from" value="{{ pur_from }}" title="From">
+        <input type="date" name="pur_to"   value="{{ pur_to }}"   title="To">
+        <select name="pur_supplier">
+          <option value="">All Suppliers</option>
+          {% for s in all_suppliers %}
+          <option value="{{ s.id }}" {{ 'selected' if pur_supplier == s.id|string }}>{{ s.supplier_name }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-yellow" style="height:36px;padding:0 16px;">Filter</button>
+        <a href="{{ url_for('reports') }}?tab=purchase" class="btn btn-ghost" style="height:36px;padding:0 14px;line-height:36px;">Clear</a>
+      </div>
+    </form>
+
+    <!-- Summary cards -->
+    <div class="report-cards">
+      <div class="report-card">
+        <div class="rc-label">Total Products</div>
+        <div class="rc-value yellow">{{ purchase.total_products }}</div>
+      </div>
+      <div class="report-card">
+        <div class="rc-label">Total Suppliers</div>
+        <div class="rc-value">{{ purchase.total_suppliers }}</div>
+      </div>
+      <div class="report-card">
+        <div class="rc-label">Inventory Value</div>
+        <div class="rc-value yellow">₹{{ "%.2f"|format(purchase.inventory_value) }}</div>
+      </div>
+      <div class="report-card">
+        <div class="rc-label">Low Stock Items</div>
+        <div class="rc-value red">{{ purchase.low_stock_count }}</div>
+      </div>
+    </div>
+
+    <!-- Products by supplier -->
+    <div class="section-heading">Products by Supplier</div>
+    <div class="report-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>SKU</th>
+            <th>Product</th>
+            <th>Category</th>
+            <th>Supplier</th>
+            <th class="text-right">Price</th>
+            <th class="text-right">Stock</th>
+            <th class="text-right">Stock Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in purchase.products %}
+          <tr>
+            <td><span class="sku-tag">{{ row.sku }}</span></td>
+            <td>{{ row.name }}</td>
+            <td class="text-muted">{{ row.category }}</td>
+            <td class="text-muted">{{ row.supplier_name or '—' }}</td>
+            <td class="text-right">₹{{ "%.2f"|format(row.price) }}</td>
+            <td class="text-right">
+              <span class="{{ 'stock-low' if row.stock < 10 else 'stock-ok' }}">{{ row.stock }}</span>
+            </td>
+            <td class="text-right" style="font-weight:600">₹{{ "%.2f"|format(row.stock_value) }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" class="report-empty">No products found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Per-supplier summary -->
+    {% if purchase.supplier_summary %}
+    <div class="section-heading">Supplier Summary</div>
+    <div class="report-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Supplier</th>
+            <th class="text-right">Products</th>
+            <th class="text-right">Total Stock</th>
+            <th class="text-right">Stock Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in purchase.supplier_summary %}
+          <tr>
+            <td>{{ s.supplier_name or 'No Supplier' }}</td>
+            <td class="text-right">{{ s.product_count }}</td>
+            <td class="text-right">{{ s.total_stock }}</td>
+            <td class="text-right" style="color:var(--yellow,#facc15);font-weight:600">₹{{ "%.2f"|format(s.stock_value) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       STOCK REPORT
+  ══════════════════════════════════════════ -->
+  <div class="report-panel" id="panel-stock">
+
+    <form method="GET" action="{{ url_for('reports') }}">
+      <input type="hidden" name="tab" value="stock">
+      <div class="report-filter">
+        <select name="stock_filter">
+          <option value="all"      {{ 'selected' if stock_filter=='all'      }}>All Items</option>
+          <option value="low"      {{ 'selected' if stock_filter=='low'      }}>Low Stock (&lt;10)</option>
+          <option value="critical" {{ 'selected' if stock_filter=='critical' }}>Critical (&lt;5)</option>
+          <option value="out"      {{ 'selected' if stock_filter=='out'      }}>Out of Stock</option>
+        </select>
+        <select name="stock_category">
+          <option value="">All Categories</option>
+          {% for c in all_categories %}
+          <option value="{{ c }}" {{ 'selected' if stock_category==c }}>{{ c }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-yellow" style="height:36px;padding:0 16px;">Filter</button>
+        <a href="{{ url_for('reports') }}?tab=stock" class="btn btn-ghost" style="height:36px;padding:0 14px;line-height:36px;">Clear</a>
+      </div>
+    </form>
+
+    <!-- Summary cards -->
+    <div class="report-cards">
+      <div class="report-card">
+        <div class="rc-label">Total SKUs</div>
+        <div class="rc-value">{{ stock_summary.total_skus }}</div>
+      </div>
+      <div class="report-card">
+        <div class="rc-label">Total Units</div>
+        <div class="rc-value yellow">{{ stock_summary.total_units }}</div>
+      </div>
+      <div class="report-card">
+        <div class="rc-label">Low Stock</div>
+        <div class="rc-value red">{{ stock_summary.low_count }}</div>
+      </div>
+      <div class="report-card">
+        <div class="rc-label">Out of Stock</div>
+        <div class="rc-value red">{{ stock_summary.out_count }}</div>
+      </div>
+    </div>
+
+    <!-- Stock table -->
+    <div class="section-heading">Stock Levels</div>
+    <div class="report-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>SKU</th>
+            <th>Product</th>
+            <th>Category</th>
+            <th>Supplier</th>
+            <th class="text-right">Price</th>
+            <th class="text-right">Stock</th>
+            <th>Level</th>
+            <th class="text-right">Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in stock_items %}
+          <tr>
+            <td><span class="sku-tag">{{ row.sku }}</span></td>
+            <td>{{ row.name }}</td>
+            <td class="text-muted">{{ row.category }}</td>
+            <td class="text-muted">{{ row.supplier_name or '—' }}</td>
+            <td class="text-right">₹{{ "%.2f"|format(row.price) }}</td>
+            <td class="text-right">
+              <strong class="{{ 'stock-low' if row.stock < 10 else 'stock-ok' }}">{{ row.stock }}</strong>
+            </td>
+            <td>
+              {% if row.stock == 0 %}
+                <span class="stock-badge critical">Out</span>
+              {% elif row.stock < 5 %}
+                <span class="stock-badge critical">Critical</span>
+              {% elif row.stock < 10 %}
+                <span class="stock-badge low">Low</span>
+              {% else %}
+                <span class="stock-badge ok">OK</span>
+              {% endif %}
+            </td>
+            <td class="text-right" style="font-weight:600">₹{{ "%.2f"|format(row.stock_value) }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="8" class="report-empty">No items match the selected filter.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Category breakdown -->
+    {% if stock_by_category %}
+    <div class="section-heading">Stock by Category</div>
+    <div class="report-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th class="text-right">SKUs</th>
+            <th class="text-right">Total Units</th>
+            <th class="text-right">Stock Value</th>
+            <th>Share</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in stock_by_category %}
+          <tr>
+            <td>{{ c.category }}</td>
+            <td class="text-right">{{ c.sku_count }}</td>
+            <td class="text-right">{{ c.total_units }}</td>
+            <td class="text-right" style="color:var(--yellow,#facc15);font-weight:600">₹{{ "%.2f"|format(c.stock_value) }}</td>
+            <td style="min-width:100px">
+              <div class="progress-bar-wrap">
+                <div class="progress-bar-fill" style="width:{{ c.share_pct }}%"></div>
+              </div>
+              <span style="font-size:11px;color:var(--muted)">{{ "%.1f"|format(c.share_pct) }}%</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+
+</div><!-- /content -->
+
+<script>
+/* ── Tab switching ── */
+const panels = ['daily','monthly','purchase','stock'];
+
+function switchTab(name) {
+  panels.forEach(p => {
+    document.getElementById('panel-' + p).classList.toggle('active', p === name);
+  });
+  document.querySelectorAll('.report-tab').forEach((btn, i) => {
+    btn.classList.toggle('active', panels[i] === name);
+  });
+}
+
+/* ── Restore active tab from URL ── */
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const tab = params.get('tab');
+  if (tab && panels.includes(tab)) switchTab(tab);
+})();
+</script>
+{% endblock %}

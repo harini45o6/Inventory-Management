@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ShopStock {% block title %}{% endblock %}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0d0f12;
+      --surface:  #141720;
+      --sidebar:  #0b0d10;
+      --border:   #1f2430;
+      --accent:   #e8c547;
+      --accent2:  #4fd1c5;
+      --red:      #ff5e5e;
+      --green:    #5ef08a;
+      --blue:     #5ea9ff;
+      --text:     #d8dde8;
+      --muted:    #5a6070;
+      --font-head: 'Barlow Condensed', sans-serif;
+      --font-mono: 'IBM Plex Mono', monospace;
+    }
+
+    body {
+      font-family: var(--font-mono);
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: 220px;
+      min-height: 100vh;
+      background: var(--sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      z-index: 100;
+    }
+    .sidebar-brand {
+      padding: 28px 24px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-brand .logo {
+      font-family: var(--font-head);
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: 3px;
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .sidebar-brand .sub {
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 2px;
+      margin-top: 2px;
+    }
+    .sidebar nav {
+      flex: 1;
+      padding: 20px 0;
+    }
+    .sidebar nav a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 24px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 12px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      font-weight: 500;
+      border-left: 3px solid transparent;
+      transition: all .18s;
+    }
+    .sidebar nav a:hover, .sidebar nav a.active {
+      color: var(--text);
+      background: rgba(232,197,71,.06);
+      border-left-color: var(--accent);
+    }
+    .sidebar nav a .icon { font-size: 16px; }
+    .sidebar-footer {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .sidebar-footer .user { color: var(--accent); margin-bottom: 8px; }
+    .logout-btn {
+      display: block;
+      text-align: center;
+      padding: 8px;
+      background: var(--border);
+      color: var(--text);
+      text-decoration: none;
+      font-size: 11px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      border-radius: 2px;
+      transition: background .15s;
+    }
+    .logout-btn:hover { background: var(--red); color: #fff; }
+
+    /* ── MAIN ── */
+    .main {
+      margin-left: 220px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    .topbar {
+      padding: 20px 36px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .topbar h1 {
+      font-family: var(--font-head);
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: #fff;
+    }
+    .content { padding: 28px 36px; flex: 1; }
+
+    /* ── FLASH MESSAGES ── */
+    .flash-wrap { padding: 0 36px; }
+    .flash {
+      padding: 12px 18px;
+      margin: 12px 0 0;
+      font-size: 12px;
+      letter-spacing: .5px;
+      border-left: 4px solid;
+      border-radius: 2px;
+      animation: fadein .3s ease;
+    }
+    .flash.success { background: rgba(94,240,138,.08); border-color: var(--green); color: var(--green); }
+    .flash.error   { background: rgba(255,94,94,.08);  border-color: var(--red);   color: var(--red); }
+    @keyframes fadein { from { opacity:0; transform: translateY(-4px); } to { opacity:1; } }
+
+    /* ── BUTTONS ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 18px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      border: none;
+      border-radius: 2px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: opacity .15s, transform .1s;
+    }
+    .btn:hover { opacity: .85; transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn-yellow { background: var(--accent); color: #0d0f12; }
+    .btn-green  { background: var(--green);  color: #0d0f12; }
+    .btn-red    { background: var(--red);    color: #fff; }
+    .btn-blue   { background: var(--blue);   color: #0d0f12; }
+    .btn-ghost  { background: var(--border); color: var(--text); }
+
+    /* ── TABLE ── */
+    .table-wrap { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    thead th {
+      font-family: var(--font-head);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    tbody tr {
+      border-bottom: 1px solid rgba(31,36,48,.7);
+      transition: background .12s;
+    }
+    tbody tr:hover { background: rgba(232,197,71,.04); }
+    tbody td {
+      padding: 12px 16px;
+      color: var(--text);
+      vertical-align: middle;
+    }
+    .sku-tag {
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing: 1px;
+    }
+    .stock-low  { color: var(--red); font-weight: 600; }
+    .stock-ok   { color: var(--green); }
+
+    /* ── MODAL ── */
+    .modal-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.7);
+      z-index: 999;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      width: 420px;
+      max-width: 95vw;
+      padding: 32px;
+      animation: modal-in .2s ease;
+    }
+    @keyframes modal-in { from { transform: scale(.95); opacity:0; } to { transform: scale(1); opacity:1; } }
+    .modal h2 {
+      font-family: var(--font-head);
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: var(--accent);
+      margin-bottom: 20px;
+    }
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+      display: block;
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .form-group input {
+      width: 100%;
+      padding: 10px 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .form-group input:focus { border-color: var(--accent); }
+    .modal-actions { display: flex; gap: 10px; margin-top: 24px; }
+    .modal-actions .btn { flex: 1; justify-content: center; }
+    .close-modal { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; float: right; margin-top: -8px; }
+
+    /* ── ACTION BUTTONS in table ── */
+    .action-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+    .action-btn {
+      font-size: 10px;
+      padding: 5px 10px;
+      letter-spacing: .8px;
+    }
+
+    /* ── BADGE ── */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      font-size: 10px;
+      letter-spacing: 1px;
+      border-radius: 2px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .badge-in    { background: rgba(94,240,138,.12); color: var(--green); }
+    .badge-out   { background: rgba(255,94,94,.12);  color: var(--red); }
+    .badge-price { background: rgba(94,169,255,.12); color: var(--blue); }
+    .badge-add   { background: rgba(232,197,71,.12); color: var(--accent); }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  {% if session.username %}
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <a href="{{ url_for('dashboard') }}" class="logo">SHOPSTOCK</a>
+      <div class="sub">INVENTORY SYSTEM</div>
+    </div>
+    <nav>
+      <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint=='dashboard' }}">
+        <span class="icon">◈</span> Dashboard
+      </a>
+      <a href="{{ url_for('products') }}" class="{{ 'active' if request.endpoint=='products' }}">
+        <span class="icon">▦</span> Products
+      </a>
+      <a href="{{ url_for('activity_log') }}" class="{{ 'active' if request.endpoint=='activity_log' }}">
+        <span class="icon">≡</span> Activity Log
+      </a>
+      <a href="{{ url_for('suppliers') }}" class="{{ 'active' if request.endpoint=='suppliers' }}">
+        <span class="icon">⌂</span> Suppliers
+      </a>
+      <a href="{{ url_for('sales') }}" class="{{ 'active' if request.endpoint=='sales' }}">
+        <span class="icon">⌂</span> Sales
+      </a>
+      <a href="{{ url_for('reports') }}" class="{{ 'active' if request.endpoint=='sales' }}">
+        <span class="icon">📊 </span> Reports
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user">{{ session.username }}</div>
+      <a href="{{ url_for('logout') }}" class="logout-btn">⏻ Logout</a>
+    </div>
+  </aside>
+  {% endif %}
+
+  <main class="main">
+    <div class="flash-wrap">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for cat, msg in messages %}
+          <div class="flash {{ cat }}">{{ msg }}</div>
+        {% endfor %}
+      {% endwith %}
+    </div>
+    {% block content %}{% endblock %}
+  </main>
+
+  <script>
+    // ── Auto-dismiss flash messages after 4 seconds ──────────────────────────
+    setTimeout(() => {
+      document.querySelectorAll('.flash').forEach(el => {
+        el.style.transition = 'opacity .5s';
+        el.style.opacity = '0';
+        setTimeout(() => el.remove(), 500);
+      });
+    }, 4000);
+
+    // ── Logout when tab/browser is closed ────────────────────────────────────
+    // Uses sendBeacon so the request fires even as the page unloads
+  </script>
+</body>
+</html>

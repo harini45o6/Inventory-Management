@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}– Invoice {{ sale.invoice_no }}{% endblock %}
+
+{% block content %}
+<style>
+/* ── Print styles ── */
+@media print {
+  .topbar, .no-print { display: none !important; }
+  .invoice-card {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+  body { background: #fff !important; color: #000 !important; }
+  .inv-table th { background: #f4f4f4 !important; color: #333 !important; }
+  .inv-table td { color: #000 !important; border-color: #ddd !important; }
+  .inv-total-row { border-top-color: #ccc !important; }
+}
+
+/* ── Invoice card ── */
+.invoice-card {
+  max-width: 720px;
+  margin: 0 auto;
+  background: var(--surface, #161616);
+  border: 1px solid var(--border, #2a2a2a);
+  border-radius: 12px;
+  padding: 40px 48px;
+}
+
+/* ── Header ── */
+.inv-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 36px;
+  padding-bottom: 24px;
+  border-bottom: 2px solid var(--yellow, #facc15);
+}
+.inv-brand { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: var(--yellow, #facc15); }
+.inv-brand span { color: var(--fg, #eee); font-weight: 400; }
+.inv-meta { text-align: right; }
+.inv-meta .inv-no { font-size: 20px; font-weight: 700; color: var(--fg, #eee); }
+.inv-meta .inv-date { font-size: 12px; color: var(--muted, #888); margin-top: 4px; }
+.inv-meta .badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 6px;
+}
+.inv-meta .badge.completed { background:#1a3a2a; color:#4ade80; }
+.inv-meta .badge.refunded  { background:#3a1a1a; color:#f87171; }
+
+/* ── Bill to ── */
+.inv-bill { margin-bottom: 28px; }
+.inv-bill .bill-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted, #888); margin-bottom: 6px; }
+.inv-bill .bill-name  { font-size: 15px; font-weight: 600; color: var(--fg, #eee); }
+.inv-note { font-size: 13px; color: var(--muted, #888); margin-top: 4px; }
+
+/* ── Items table ── */
+.inv-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 13px; }
+.inv-table th {
+  background: var(--surface, #1a1a1a);
+  color: var(--muted, #888);
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border, #2a2a2a);
+}
+.inv-table th:last-child,
+.inv-table td:last-child { text-align: right; }
+.inv-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border, #1e1e1e);
+  color: var(--fg, #eee);
+}
+.inv-table tbody tr:last-child td { border-bottom: none; }
+
+/* ── Total ── */
+.inv-total-section { margin-top: 8px; display: flex; justify-content: flex-end; }
+.inv-total-box { min-width: 260px; }
+.inv-total-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  font-size: 13px;
+  color: var(--muted, #888);
+  border-top: 1px solid var(--border, #2a2a2a);
+}
+.inv-total-row.grand {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--fg, #eee);
+  border-top: 2px solid var(--yellow, #facc15);
+  margin-top: 4px;
+  padding-top: 12px;
+}
+.inv-total-row.grand .amount { color: var(--yellow, #facc15); }
+
+/* ── Footer ── */
+.inv-footer {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border, #2a2a2a);
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted, #888);
+}
+</style>
+
+<div class="topbar no-print">
+  <h1>INVOICE</h1>
+  <div style="display:flex;gap:10px;">
+    <a href="{{ url_for('sales') }}" class="btn btn-ghost">← Back to Sales</a>
+    <button class="btn btn-yellow" onclick="window.print()">🖨 Print / Save PDF</button>
+  </div>
+</div>
+
+<div class="content">
+  <div class="invoice-card">
+
+    <!-- Header -->
+    <div class="inv-header">
+      <div>
+        <div class="inv-brand">Shop<span>Stock</span></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:6px;">Inventory Management System</div>
+      </div>
+      <div class="inv-meta">
+        <div class="inv-no">{{ sale.invoice_no }}</div>
+        <div class="inv-date">
+          {{ sale.sale_date.strftime('%d %B %Y, %I:%M %p') if sale.sale_date else '—' }}
+        </div>
+        <div><span class="badge {{ sale.status }}">{{ sale.status }}</span></div>
+      </div>
+    </div>
+
+    <!-- Bill to -->
+    <div class="inv-bill">
+      <div class="bill-label">Bill To</div>
+      <div class="bill-name">{{ sale.customer or 'Walk-in Customer' }}</div>
+      {% if sale.note %}
+        <div class="inv-note">Note: {{ sale.note }}</div>
+      {% endif %}
+    </div>
+
+    <!-- Items table -->
+    <table class="inv-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>SKU</th>
+          <th>Product</th>
+          <th>Unit Price</th>
+          <th>Qty</th>
+          <th>Line Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td style="color:var(--muted)">{{ loop.index }}</td>
+          <td><span class="sku-tag">{{ item.sku }}</span></td>
+          <td>{{ item.name }}</td>
+          <td>₹{{ "%.2f"|format(item.unit_price) }}</td>
+          <td>{{ item.qty }}</td>
+          <td style="font-weight:600;">₹{{ "%.2f"|format(item.line_total) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <!-- Total -->
+    <div class="inv-total-section">
+      <div class="inv-total-box">
+        <div class="inv-total-row grand">
+          <span>Total Amount</span>
+          <span class="amount">₹{{ "%.2f"|format(sale.total) }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="inv-footer">
+      Generated by ShopStock &nbsp;·&nbsp; {{ sale.invoice_no }} &nbsp;·&nbsp; Thank you for your business.
+    </div>
+
+  </div>
+</div>
+{% endblock %}

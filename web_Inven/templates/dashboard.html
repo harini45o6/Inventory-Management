@@ -1,0 +1,676 @@
+{% extends "base.html" %}
+{% block title %}– Dashboard{% endblock %}
+
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  /* ── DASHBOARD GRID ── */
+  .dash-content { padding: 28px 36px; }
+
+  /* ── TOPBAR ── */
+  .dash-topbar {
+    padding: 20px 36px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .dash-topbar h1 {
+    font-family: var(--font-head);
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #fff;
+    white-space: nowrap;
+  }
+  .dash-topbar .right { display: flex; align-items: center; gap: 12px; }
+
+  /* ── SEARCH ── */
+  .search-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  .search-wrap .search-icon {
+    position: absolute;
+    left: 12px;
+    color: var(--muted);
+    font-size: 14px;
+    pointer-events: none;
+  }
+  #global-search {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 9px 14px 9px 34px;
+    width: 260px;
+    outline: none;
+    border-radius: 2px;
+    transition: border-color .15s, width .25s;
+  }
+  #global-search:focus { border-color: var(--accent); width: 320px; }
+  #search-results {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    width: 360px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    z-index: 500;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+  #search-results.show { display: block; }
+  .search-result-item {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background .12s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .search-result-item:hover { background: rgba(232,197,71,.06); }
+  .search-result-item:last-child { border-bottom: none; }
+  .sri-name { font-size: 13px; color: var(--text); }
+  .sri-meta { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .sri-stock { font-size: 12px; font-weight: 600; }
+  .no-results { padding: 16px; text-align: center; color: var(--muted); font-size: 12px; }
+
+  /* ── KPI CARDS ── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 3px solid transparent;
+    padding: 20px 22px;
+    position: relative;
+    overflow: hidden;
+    animation: kpi-in .4s ease both;
+  }
+  .kpi-card:nth-child(1) { border-top-color: var(--accent);  animation-delay:.05s; }
+  .kpi-card:nth-child(2) { border-top-color: var(--blue);    animation-delay:.1s; }
+  .kpi-card:nth-child(3) { border-top-color: var(--green);   animation-delay:.15s; }
+  .kpi-card:nth-child(4) { border-top-color: var(--red);     animation-delay:.2s; }
+  .kpi-card:nth-child(5) { border-top-color: var(--accent2); animation-delay:.25s; }
+  @keyframes kpi-in { from { opacity:0; transform: translateY(12px); } to { opacity:1; } }
+  .kpi-label {
+    font-size: 9px;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .kpi-value {
+    font-family: var(--font-head);
+    font-size: 36px;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1;
+  }
+  .kpi-value.currency::before { content: '₹'; font-size: 20px; color: var(--muted); margin-right: 2px; }
+  .kpi-sub { font-size: 10px; color: var(--muted); margin-top: 6px; }
+  .kpi-icon {
+    position: absolute;
+    right: 16px; top: 50%;
+    transform: translateY(-50%);
+    font-size: 32px;
+    opacity: .08;
+  }
+
+  /* ── MAIN GRID ── */
+  .dash-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .dash-grid-3 {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 16px;
+  }
+
+  /* ── PANEL ── */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 0;
+    animation: kpi-in .5s ease both;
+  }
+  .panel-header {
+    padding: 16px 22px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .panel-title {
+    font-family: var(--font-head);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+  .panel-badge {
+    font-size: 10px;
+    padding: 2px 8px;
+    background: var(--border);
+    color: var(--muted);
+    letter-spacing: 1px;
+    border-radius: 2px;
+  }
+  .panel-body { padding: 20px 22px; }
+
+  /* ── CATEGORY TABLE ── */
+  .cat-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .cat-table th {
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 0 12px 10px 0;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .cat-table td {
+    padding: 11px 12px 11px 0;
+    border-bottom: 1px solid rgba(31,36,48,.5);
+    vertical-align: middle;
+  }
+  .cat-table tr:last-child td { border-bottom: none; }
+  .cat-name { color: var(--text); font-weight: 500; }
+  .cat-bar-wrap { width: 80px; background: var(--border); height: 4px; border-radius: 2px; display: inline-block; vertical-align: middle; margin-right: 6px; }
+  .cat-bar { height: 4px; border-radius: 2px; background: var(--accent); }
+
+  /* ── LOW STOCK ── */
+  .low-stock-list { display: flex; flex-direction: column; gap: 8px; }
+  .low-stock-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--red);
+  }
+  .ls-info .ls-name { font-size: 13px; color: var(--text); }
+  .ls-info .ls-sku  { font-size: 10px; color: var(--muted); margin-top: 2px; letter-spacing: 1px; }
+  .ls-stock {
+    font-family: var(--font-head);
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--red);
+    min-width: 40px;
+    text-align: right;
+  }
+  .ls-stock.warn { color: #ffaa33; }
+
+  /* ── ACTIVITY FEED ── */
+  .activity-feed { display: flex; flex-direction: column; gap: 0; }
+  .activity-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(31,36,48,.6);
+  }
+  .activity-row:last-child { border-bottom: none; }
+  .act-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-top: 5px;
+    flex-shrink: 0;
+  }
+  .act-dot.in    { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .act-dot.out   { background: var(--red);   box-shadow: 0 0 6px var(--red); }
+  .act-dot.price { background: var(--blue);  box-shadow: 0 0 6px var(--blue); }
+  .act-dot.add   { background: var(--accent);box-shadow: 0 0 6px var(--accent); }
+  .act-body .act-name { font-size: 12px; color: var(--text); }
+  .act-body .act-meta { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .act-qty {
+    margin-left: auto;
+    font-family: var(--font-head);
+    font-size: 18px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .act-qty.pos { color: var(--green); }
+  .act-qty.neg { color: var(--red); }
+  .act-qty.neu { color: var(--blue); font-size: 12px; }
+
+  /* ── TOP PRODUCTS ── */
+  .top-prod-list { display: flex; flex-direction: column; gap: 10px; }
+  .top-prod-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .tp-rank {
+    font-family: var(--font-head);
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--border);
+    width: 28px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .tp-rank.gold   { color: var(--accent); }
+  .tp-rank.silver { color: #aaa; }
+  .tp-rank.bronze { color: #cd7f32; }
+  .tp-bar-wrap { flex: 1; background: var(--border); height: 6px; border-radius: 3px; }
+  .tp-bar { height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+  .tp-name { font-size: 12px; color: var(--text); min-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tp-value { font-size: 12px; color: var(--accent); white-space: nowrap; min-width: 80px; text-align: right; }
+
+  /* ── CHART ── */
+  .chart-wrap {
+  position: relative;
+  width: 100%;
+  height: 220px;
+  min-height: 220px;
+  max-height: 220px;
+  overflow: hidden;
+}
+
+  /* ── REFRESH BTN ── */
+  .refresh-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    padding: 5px 10px;
+    cursor: pointer;
+    transition: all .15s;
+    text-decoration: none;
+    display: inline-block;
+  }
+  .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .empty-state { text-align: center; color: var(--muted); font-size: 12px; padding: 24px 0; letter-spacing: 1px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- ── TOPBAR ── -->
+<div class="dash-topbar">
+  <h1>DASHBOARD</h1>
+  <div class="right">
+    <!-- SEARCH -->
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input type="text" id="global-search" placeholder="Search products by name or SKU…" autocomplete="off"/>
+      <div id="search-results"></div>
+    </div>
+    <a href="{{ url_for('dashboard') }}" class="refresh-btn">↻ Refresh</a>
+  </div>
+</div>
+
+<div class="dash-content">
+
+  <!-- ── KPI CARDS ── -->
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Total Products</div>
+      <div class="kpi-value" id="kpi-products">{{ total_products }}</div>
+      <div class="kpi-sub">unique SKUs</div>
+      <div class="kpi-icon">▦</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Total Units</div>
+      <div class="kpi-value" id="kpi-units">{{ total_units }}</div>
+      <div class="kpi-sub">in stock</div>
+      <div class="kpi-icon">⊞</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Inventory Value</div>
+      <div class="kpi-value currency" id="kpi-value">{{ "%.2f"|format(inventory_value) }}</div>
+      <div class="kpi-sub">total stock value</div>
+      <div class="kpi-icon">◈</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Low Stock</div>
+      <div class="kpi-value" style="color:var(--red)" id="kpi-lowstock">{{ low_stock }}</div>
+      <div class="kpi-sub">items below 10 units</div>
+      <div class="kpi-icon">⚠</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Categories</div>
+      <div class="kpi-value" style="color:var(--accent2)" id="kpi-cats">{{ total_categories }}</div>
+      <div class="kpi-sub">product groups</div>
+      <div class="kpi-icon">❖</div>
+    </div>
+  </div>
+
+<!-- ── ROW 1: Most Sold + Sales Overview (equal halves) ── -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+
+  <!-- Most Sold Items -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Most Sold Items</span>
+      <span class="panel-badge">top 10</span>
+    </div>
+    <div class="panel-body">
+      {% if top_sold %}
+      {% set max_qty = top_sold[0].total_qty %}
+      <div class="top-prod-list">
+        {% for p in top_sold %}
+        <div class="top-prod-row">
+          <div class="tp-rank {{ 'gold' if loop.index==1 else 'silver' if loop.index==2 else 'bronze' if loop.index==3 else '' }}">
+            {{ loop.index }}
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div class="tp-name" title="{{ p.name }}">{{ p.name }}</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+              <div class="tp-bar-wrap" style="flex:1;">
+                <div class="tp-bar" style="width:{{ [(p.total_qty / max_qty * 100)|int, 4]|max }}%"></div>
+              </div>
+              <span style="font-size:10px;color:var(--muted);white-space:nowrap;">{{ p.total_qty }} sold</span>
+            </div>
+          </div>
+          <div class="tp-value">₹{{ "%.0f"|format(p.total_revenue) }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state">No sales data yet.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Sales Overview -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Sales Overview</span>
+      <span class="panel-badge">charts</span>
+    </div>
+    <div class="panel-body">
+      <div style="font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Last 5 Days Revenue</div>
+      <div style="height:180px;"><canvas id="last5Chart"></canvas></div>
+      <div style="font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin:16px 0 8px;">Revenue Trend (Last 7 Days)</div>
+      <div style="height:160px;"><canvas id="revTrendChart"></canvas></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── ROW 2: Category Breakdown (wide) + Right column (Low Stock + Activity stacked) ── -->
+<div style="display:grid;grid-template-columns:1.6fr 1fr;gap:16px;">
+
+  <!-- Category Breakdown -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Category Breakdown</span>
+      <span class="panel-badge">{{ categories|length }} groups</span>
+    </div>
+    <div class="panel-body" style="padding:16px 22px;">
+      {% if categories %}
+      {% set max_val = categories[0].total_value %}
+      <table class="cat-table">
+        <thead>
+          <tr>
+            <th>Category</th><th>Products</th><th>Stock</th><th>Avg Price</th><th>Total Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cat in categories %}
+          <tr>
+            <td class="cat-name">{{ cat.category }}</td>
+            <td style="color:var(--muted);">{{ cat.product_count }}</td>
+            <td style="color:var(--text);">{{ cat.total_stock }}</td>
+            <td style="color:var(--muted);">₹{{ "%.2f"|format(cat.avg_price) }}</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <div class="cat-bar-wrap">
+                  <div class="cat-bar" style="width:{{ [(cat.total_value / max_val * 100)|int, 4]|max }}%"></div>
+                </div>
+                <span style="color:var(--accent);font-size:12px;font-weight:600;">₹{{ "%.0f"|format(cat.total_value) }}</span>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state">No category data yet.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Right column: Low Stock + Activity stacked -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+
+    <!-- Low Stock Alerts -->
+    <div class="panel" style="flex:1;">
+      <div class="panel-header">
+        <span class="panel-title">Low Stock Alerts</span>
+        <span class="panel-badge" style="background:rgba(255,94,94,.15);color:var(--red);">{{ low_stock_items|length }} items</span>
+      </div>
+      <div class="panel-body" style="padding:14px 22px;">
+        {% if low_stock_items %}
+        <div class="low-stock-list">
+          {% for item in low_stock_items %}
+          <div class="low-stock-row">
+            <div class="ls-info">
+              <div class="ls-name">{{ item.name }}</div>
+              <div class="ls-sku">{{ item.sku }} · {{ item.category }}</div>
+            </div>
+            <div class="ls-stock {{ 'warn' if item.stock >= 5 else '' }}">{{ item.stock }}</div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state" style="color:var(--green);">✓ All items well stocked</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="panel" style="flex:1;">
+      <div class="panel-header">
+        <span class="panel-title">Recent Activity</span>
+        <a href="{{ url_for('activity_log') }}" class="refresh-btn">View all →</a>
+      </div>
+      <div class="panel-body" style="padding:10px 22px;">
+        {% if recent_activity %}
+        <div class="activity-feed">
+          {% for log in recent_activity %}
+          {% set act = log.action %}
+          <div class="activity-row">
+            <div class="act-dot {{ 'in' if 'IN' in act else 'out' if 'OUT' in act else 'price' if 'Price' in act else 'add' }}"></div>
+            <div class="act-body">
+              <div class="act-name">{{ log.name }}</div>
+              <div class="act-meta">{{ act }} · {{ log.datetime.strftime('%d %b %H:%M') if log.datetime else '' }}</div>
+            </div>
+            <div class="act-qty {{ 'pos' if log.qty_change > 0 else 'neg' if log.qty_change < 0 else 'neu' }}">
+              {% if log.qty_change != 0 %}{{ '+' if log.qty_change > 0 else '' }}{{ log.qty_change }}{% else %}${% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">No activity yet.</div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+
+    
+
+<!-- ── CHART DATA + SEARCH ── -->
+<script>
+  // ── Chart.js global defaults ──────────────────────────────────────────────
+  Chart.defaults.color = '#5a6070';
+  Chart.defaults.borderColor = '#1f2430';
+  Chart.defaults.font.family = "'IBM Plex Mono', monospace";
+
+  const PALETTE = ['#e8c547','#4fd1c5','#5ea9ff','#5ef08a','#ff5e5e','#c084fc','#fb923c','#f472b6'];
+
+// ── Last 5 days revenue bar ───────────────────────────────────────────────
+const last5Data = {{ sales_last5 | tojson }};
+const last5Ctx  = document.getElementById('last5Chart');
+if (last5Data.length && last5Ctx) {
+  new Chart(last5Ctx, {
+    type: 'bar',
+    data: {
+      labels: last5Data.map(r => {
+        const d = new Date(r.day);
+        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+      }),
+      datasets: [{
+        label: 'Revenue',
+        data: last5Data.map(r => parseFloat(r.revenue)),
+        backgroundColor: PALETTE.map(c => c + '99'),
+        borderColor: PALETTE,
+        borderWidth: 1,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+        y: {
+          grid: { color: '#1f2430' },
+          ticks: {
+            font: { size: 10 },
+            callback: v => '₹' + v.toLocaleString('en-IN')
+          }
+        }
+      }
+    }
+  });
+}
+
+// ── Revenue trend line ────────────────────────────────────────────────────
+const trendData = {{ sales_trend | tojson }};
+const trendCtx  = document.getElementById('revTrendChart');
+if (trendData.length && trendCtx) {
+  new Chart(trendCtx, {
+    type: 'line',
+    data: {
+      labels: trendData.map(r => {
+        const d = new Date(r.day);
+        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+      }),
+      datasets: [{
+        label: 'Revenue',
+        data: trendData.map(r => parseFloat(r.revenue)),
+        borderColor: '#e8c547',
+        backgroundColor: 'rgba(232,197,71,0.08)',
+        borderWidth: 2,
+        pointBackgroundColor: '#e8c547',
+        pointRadius: 4,
+        tension: 0.4,
+        fill: true,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+        y: {
+          grid: { color: '#1f2430' },
+          ticks: {
+            font: { size: 10 },
+            callback: v => '₹' + v.toLocaleString('en-IN')
+          }
+        }
+      }
+    }
+  });
+}
+
+  // ── KPI count-up animation ────────────────────────────────────────────────
+  function countUp(el, target, prefix='', suffix='', decimals=0) {
+    const duration = 900;
+    const start = performance.now();
+    function update(now) {
+      const t = Math.min((now - start) / duration, 1);
+      const ease = 1 - Math.pow(1 - t, 3);
+      const val = target * ease;
+      el.textContent = prefix + val.toLocaleString('en-IN', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+      }) + suffix;
+      if (t < 1) requestAnimationFrame(update);
+    }
+    requestAnimationFrame(update);
+  }
+
+  countUp(document.getElementById('kpi-products'), {{ total_products }});
+  countUp(document.getElementById('kpi-units'),    {{ total_units }});
+  countUp(document.getElementById('kpi-value'),    {{ inventory_value }}, '', '', 2);
+  countUp(document.getElementById('kpi-lowstock'), {{ low_stock }});
+  countUp(document.getElementById('kpi-cats'),     {{ total_categories }});
+
+  // ── Global product search ─────────────────────────────────────────────────
+  const searchInput   = document.getElementById('global-search');
+  const searchResults = document.getElementById('search-results');
+
+  // Build product index from server data
+  const productIndex = {{ categories | tojson }};  // categories for reference
+
+  // Fetch products via a lightweight inline data block
+  const allProducts = [
+    {% for item in top_products %}
+    { sku: "{{ item.sku }}", name: "{{ item.name }}", stock: {{ item.stock }}, price: {{ item.price }}, value: {{ item.value }} },
+    {% endfor %}
+  ];
+
+  searchInput.addEventListener('input', function() {
+    const q = this.value.trim().toLowerCase();
+    if (q.length < 2) { searchResults.classList.remove('show'); return; }
+
+    fetch(`/search_products?q=${encodeURIComponent(q)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.length === 0) {
+          searchResults.innerHTML = '<div class="no-results">No products found</div>';
+        } else {
+          searchResults.innerHTML = data.map(p => `
+            <div class="search-result-item" onclick="window.location='/products'">
+              <div>
+                <div class="sri-name">${p.name}</div>
+                <div class="sri-meta">${p.sku} · ${p.category} · ₹${parseFloat(p.price).toFixed(2)}</div>
+              </div>
+              <div class="sri-stock" style="color:${p.stock < 10 ? 'var(--red)' : 'var(--green)'}">
+                ${p.stock} units
+              </div>
+            </div>
+          `).join('');
+        }
+        searchResults.classList.add('show');
+      });
+  });
+
+  // Close on outside click
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.search-wrap')) searchResults.classList.remove('show');
+  });
+
+  searchInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') { searchResults.classList.remove('show'); this.blur(); }
+  });
+</script>
+{% endblock %}
