@@ -10,9 +10,11 @@ app.config["SESSION_PERMANENT"] = False
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 
-VALID_USERS = {
-    "admin": "admin123"
-}
+import hashlib
+
+def hash_password(password):
+    """SHA-256 hash — matches the hashes stored by the DB seeder."""
+    return hashlib.sha256(password.encode()).hexdigest()
 
 DB_CONFIG = {
     "host": "localhost",
@@ -51,27 +53,141 @@ def log_activity(sku, name, action, qty_change, before, after, note):
 @app.route("/", methods=["GET", "POST"])
 def login():
     if "username" in session:
-        return redirect(url_for("dashboard"))
+        role = session.get("role", "admin")
+        return redirect(url_for("cashier") if role == "cashier" else url_for("dashboard"))
 
     error = None
+    selected_role = "admin"
 
     if request.method == "POST":
-        username = request.form.get("username", "").strip()
-        password = request.form.get("password", "")
+        username      = request.form.get("username", "").strip()
+        password      = request.form.get("password", "")
+        selected_role = request.form.get("role", "admin")
 
-        if VALID_USERS.get(username) == password:
-            session["username"] = username
-            session.permanent = False
-            return redirect(url_for("dashboard"))
+        try:
+            db = get_db()
+            cursor = db.cursor(dictionary=True)
+            cursor.execute(
+                "SELECT username, password, role FROM users WHERE username = %s",
+                (username,)
+            )
+            user = cursor.fetchone()
+            db.close()
 
-        error = "Invalid username or password."
+            # Accept SHA-256 hash (DB) or plaintext fallback (dev)
+            pwd_hash = hash_password(password)
+            if user and (user["password"] == pwd_hash or user["password"] == password):
+                # Enforce the role tab matches the actual user role
+                if user["role"] != selected_role:
+                    error = f"This account is not a {selected_role}."
+                else:
+                    session["username"] = username
+                    session["role"]     = user["role"]
+                    session.permanent   = False
+                    if user["role"] == "cashier":
+                        return redirect(url_for("cashier_dashboard"))
+                    return redirect(url_for("dashboard"))
+            else:
+                error = "Invalid username or password."
+        except Exception as e:
+            error = f"Login error: {e}"
 
-    return render_template("login.html", error=error)
+    return render_template("login.html", error=error, selected_role=selected_role)
 
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+def admin_required(f):
+    """Restrict route to admin role only."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "username" not in session:
+            return redirect(url_for("login"))
+        if session.get("role") != "admin":
+            flash("Admin access required.", "error")
+            return redirect(url_for("cashier_dashboard"))
+        return f(*args, **kwargs)
+    return decorated
+
+# ── CASHIER DASHBOARD ─────────────────────────────────────────────────────────
+@app.route("/cashier")
+@login_required
+def cashier_dashboard():
+    if session.get("role") == "admin":
+        return redirect(url_for("dashboard"))
+
+    db = get_db()
+    cursor = db.cursor(dictionary=True)
+    now = datetime.now()
+
+    # Today's transaction count
+    cursor.execute("""
+        SELECT COUNT(*) AS v FROM sales
+        WHERE DATE(sale_date) = CURDATE() AND status = 'completed'
+    """)
+    today_count = cursor.fetchone()["v"]
+
+    # Today's revenue
+    cursor.execute("""
+        SELECT COALESCE(SUM(total), 0) AS v FROM sales
+        WHERE DATE(sale_date) = CURDATE() AND status = 'completed'
+    """)
+    today_revenue = float(cursor.fetchone()["v"])
+
+    # Items sold today
+    cursor.execute("""
+        SELECT COALESCE(SUM(si.qty), 0) AS v
+        FROM sale_items si
+        JOIN sales s ON si.sale_id = s.id
+        WHERE DATE(s.sale_date) = CURDATE() AND s.status = 'completed'
+    """)
+    today_items = int(cursor.fetchone()["v"])
+
+    # Recent 8 sales
+    cursor.execute("""
+        SELECT s.id, s.invoice_no, COALESCE(c.name, s.customer, '—') AS customer,
+               s.total, s.sale_date, s.status,
+               COALESCE(SUM(si.qty), 0) AS item_count
+        FROM sales s
+        LEFT JOIN customers c ON c.id = s.customer_id
+        LEFT JOIN sale_items si ON si.sale_id = s.id
+        GROUP BY s.id, s.invoice_no, c.name, s.customer, s.total, s.sale_date, s.status
+        ORDER BY s.id DESC LIMIT 8
+    """)
+    recent_sales = cursor.fetchall()
+
+    # Top products today by revenue
+    cursor.execute("""
+        SELECT si.name, SUM(si.qty) AS qty, SUM(si.line_total) AS revenue
+        FROM sale_items si
+        JOIN sales s ON si.sale_id = s.id
+        WHERE DATE(s.sale_date) = CURDATE() AND s.status = 'completed'
+        GROUP BY si.name
+        ORDER BY revenue DESC LIMIT 6
+    """)
+    top_today = cursor.fetchall()
+
+    # Low stock items (cashier awareness)
+    cursor.execute("""
+        SELECT sku, name, category, stock, price
+        FROM products WHERE stock < 10 ORDER BY stock ASC LIMIT 6
+    """)
+    low_stock_items = cursor.fetchall()
+
+    db.close()
+
+    return render_template("cashier.html",
+        username=session["username"],
+        now=now,
+        today_count=today_count,
+        today_revenue=today_revenue,
+        today_items=today_items,
+        recent_sales=recent_sales,
+        top_today=top_today,
+        low_stock_items=low_stock_items,
+    )
 
 # ── DASHBOARD ─────────────────────────────────────────────────────────────────
 @app.route("/dashboard")

@@ -295,24 +295,33 @@
       <div class="sub">INVENTORY SYSTEM</div>
     </div>
     <nav>
-      <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint=='dashboard' }}">
-        <span class="icon">◈</span> Dashboard
-      </a>
-      <a href="{{ url_for('products') }}" class="{{ 'active' if request.endpoint=='products' }}">
-        <span class="icon">▦</span> Products
-      </a>
-      <a href="{{ url_for('activity_log') }}" class="{{ 'active' if request.endpoint=='activity_log' }}">
-        <span class="icon">≡</span> Activity Log
-      </a>
-      <a href="{{ url_for('suppliers') }}" class="{{ 'active' if request.endpoint=='suppliers' }}">
-        <span class="icon">⌂</span> Suppliers
-      </a>
-      <a href="{{ url_for('sales') }}" class="{{ 'active' if request.endpoint=='sales' }}">
-        <span class="icon">⌂</span> Sales
-      </a>
-      <a href="{{ url_for('reports') }}" class="{{ 'active' if request.endpoint=='sales' }}">
-        <span class="icon">📊 </span> Reports
-      </a>
+      {% if session.role == 'cashier' %}
+        <a href="{{ url_for('cashier_dashboard') }}" class="{{ 'active' if request.endpoint=='cashier_dashboard' }}">
+          <span class="icon">⊡</span> Dashboard
+        </a>
+        <a href="{{ url_for('sales') }}" class="{{ 'active' if request.endpoint=='sales' }}">
+          <span class="icon">⌂</span> Sales / POS
+        </a>
+      {% else %}
+        <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint=='dashboard' }}">
+          <span class="icon">◈</span> Dashboard
+        </a>
+        <a href="{{ url_for('products') }}" class="{{ 'active' if request.endpoint=='products' }}">
+          <span class="icon">▦</span> Products
+        </a>
+        <a href="{{ url_for('activity_log') }}" class="{{ 'active' if request.endpoint=='activity_log' }}">
+          <span class="icon">≡</span> Activity Log
+        </a>
+        <a href="{{ url_for('suppliers') }}" class="{{ 'active' if request.endpoint=='suppliers' }}">
+          <span class="icon">⌂</span> Suppliers
+        </a>
+        <a href="{{ url_for('sales') }}" class="{{ 'active' if request.endpoint=='sales' }}">
+          <span class="icon">⌂</span> Sales
+        </a>
+        <a href="{{ url_for('reports') }}" class="{{ 'active' if request.endpoint=='reports' }}">
+          <span class="icon">📊 </span> Reports
+        </a>
+      {% endif %}
     </nav>
     <div class="sidebar-footer">
       <div class="user">{{ session.username }}</div>
