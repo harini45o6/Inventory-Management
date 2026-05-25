@@ -1650,14 +1650,15 @@ def cashier_my_sales():
     """)
     my_sales = cursor.fetchall()
 
+    stats_date_clause = date_clause.replace("s.sale_date", "sale_date")
     cursor.execute(f"""
         SELECT COUNT(*) AS cnt, COALESCE(SUM(total),0) AS rev
-        FROM sales WHERE status='completed' {date_clause}
+        FROM sales WHERE status='completed' {stats_date_clause}
     """)
     stats = cursor.fetchone()
 
     db.close()
-    return render_template("cashier_my_sales.html",
+    return render_template("Cashier my sales.html",
         my_sales=my_sales,
         total_count=int(stats["cnt"]),
         total_revenue=float(stats["rev"]),
@@ -1685,7 +1686,7 @@ def cashier_customers():
     """)
     customer_list = cursor.fetchall()
     db.close()
-    return render_template("cashier_customers.html",
+    return render_template("Cashier my customers.html",
         customers=customer_list,
         username=session["username"],
     )

@@ -3,49 +3,69 @@
 
 {% block content %}
 <style>
-.filter-bar {
+/* ── Action filter pills ── */
+.action-filters {
   display: flex;
-  gap: 10px;
   flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
   align-items: center;
-  margin-bottom: 18px;
 }
-.filter-bar input[type="search"] {
-  flex: 1;
-  min-width: 180px;
-  background: var(--surface, #1a1a1a);
-  color: var(--text, #eee);
-  border: 1px solid var(--border, #333);
-  border-radius: 6px;
-  padding: 7px 12px;
-  font-size: 13px;
-  height: 36px;
-  box-sizing: border-box;
-  outline: none;
+.action-pill {
+  padding: 6px 16px;
   font-family: var(--font-mono);
-}
-.filter-bar input[type="search"]:focus { border-color: var(--accent, #facc15); }
-.filter-bar select {
-  background: var(--surface, #1a1a1a);
-  color: var(--text, #eee);
-  border: 1px solid var(--border, #333);
-  border-radius: 6px;
-  padding: 7px 30px 7px 12px;
-  font-size: 13px;
-  height: 36px;
-  box-sizing: border-box;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  border-radius: 2px;
   cursor: pointer;
-  outline: none;
-  font-family: var(--font-mono);
-  min-width: 160px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  transition: all .15s;
+  user-select: none;
 }
-.filter-bar select:focus { border-color: var(--accent, #facc15); }
-.filter-bar select option { background: var(--surface, #1a1a1a); }
-#log-count { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.action-pill:hover { color: var(--text); border-color: var(--text); }
+
+.action-pill[data-action=""]          { border-color: var(--accent); color: var(--accent); }
+.action-pill[data-action=""].active   { background: var(--accent); color: #0d0f12; }
+
+.action-pill[data-action="Restock IN"]        { border-color: var(--green); color: var(--green); }
+.action-pill[data-action="Restock IN"].active { background: var(--green); color: #0d0f12; }
+
+.action-pill[data-action="Restock OUT"]        { border-color: var(--red); color: var(--red); }
+.action-pill[data-action="Restock OUT"].active { background: var(--red); color: #fff; }
+
+.action-pill[data-action="Sale OUT"]        { border-color: #ff9f43; color: #ff9f43; }
+.action-pill[data-action="Sale OUT"].active { background: #ff9f43; color: #0d0f12; }
+
+.action-pill[data-action="Add Item"]        { border-color: var(--accent); color: var(--accent); }
+.action-pill[data-action="Add Item"].active { background: var(--accent); color: #0d0f12; }
+
+.action-pill[data-action="Price Change"]        { border-color: var(--blue); color: var(--blue); }
+.action-pill[data-action="Price Change"].active { background: var(--blue); color: #0d0f12; }
+
+.action-pill[data-action="Manual Edit"]        { border-color: #5ea9ff; color: #5ea9ff; }
+.action-pill[data-action="Manual Edit"].active { background: #5ea9ff; color: #0d0f12; }
+
+.action-pill[data-action="Delete"]        { border-color: #f87171; color: #f87171; }
+.action-pill[data-action="Delete"].active { background: #f87171; color: #fff; }
+
+.action-pill[data-action="Refund IN"]        { border-color: #c084fc; color: #c084fc; }
+.action-pill[data-action="Refund IN"].active { background: #c084fc; color: #0d0f12; }
+
+#log-count { font-size: 12px; color: var(--muted); margin-left: auto; white-space: nowrap; }
+
+/* ── Action badge colors in table ── */
+.badge-restock-in  { background: rgba(94,240,138,.12);  color: #5ef08a; }
+.badge-restock-out { background: rgba(255,94,94,.12);   color: #ff5e5e; }
+.badge-sale-out    { background: rgba(255,159,67,.12);  color: #ff9f43; }
+.badge-add-item    { background: rgba(232,197,71,.12);  color: #e8c547; }
+.badge-price       { background: rgba(94,169,255,.12);  color: #5ea9ff; }
+.badge-edit        { background: rgba(94,169,255,.08);  color: #7ec8ff; }
+.badge-delete      { background: rgba(248,113,113,.12); color: #f87171; }
+.badge-refund      { background: rgba(192,132,252,.12); color: #c084fc; }
+.badge-default     { background: rgba(255,255,255,.06); color: var(--muted); }
 </style>
 
 <div class="topbar">
@@ -55,19 +75,17 @@
 
 <div class="content">
 
-  <!-- Filter bar -->
-  <div class="filter-bar">
-    <input type="search" id="log-search" placeholder="Search SKU, product, note…" oninput="filterLogs()">
-    <select id="log-action-filter" onchange="filterLogs()">
-      <option value="">All Actions</option>
-      <option value="Restock IN">▲ Restock IN</option>
-      <option value="Restock OUT">▼ Restock OUT</option>
-      <option value="Add Item">＋ Add Item</option>
-      <option value="Price Change">$ Price Change</option>
-      <option value="Manual Edit">✎ Manual Edit</option>
-      <option value="Delete">✕ Delete</option>
-      <option value="Refund IN">↩ Refund IN</option>
-    </select>
+  <!-- Action filter pills -->
+  <div class="action-filters">
+    <button class="action-pill active" data-action="" onclick="setFilter(this)">All</button>
+    <button class="action-pill" data-action="Restock IN"  onclick="setFilter(this)">Restock In</button>
+    <button class="action-pill" data-action="Restock OUT" onclick="setFilter(this)">Restock Out</button>
+    <button class="action-pill" data-action="Sale OUT"    onclick="setFilter(this)">Sale Out</button>
+    <button class="action-pill" data-action="Add Item"    onclick="setFilter(this)">Add Item</button>
+    <button class="action-pill" data-action="Price Change" onclick="setFilter(this)">Price Change</button>
+    <button class="action-pill" data-action="Manual Edit" onclick="setFilter(this)">Manual Edit</button>
+    <button class="action-pill" data-action="Delete"      onclick="setFilter(this)">Delete</button>
+    <button class="action-pill" data-action="Refund IN"   onclick="setFilter(this)">Refund In</button>
   </div>
 
   <div class="table-wrap">
@@ -87,33 +105,30 @@
       </thead>
       <tbody id="log-tbody">
         {% for log in logs %}
-        <tr
-          data-sku="{{ log.sku | lower }}"
-          data-name="{{ log.name | lower | e }}"
-          data-action="{{ log.action }}"
-          data-note="{{ log.note | lower | e }}"
-        >
+        <tr data-action="{{ log.action }}">
           <td style="color:var(--muted);">{{ log.id }}</td>
           <td style="font-size:11px;white-space:nowrap;">{{ log.datetime }}</td>
           <td><span class="sku-tag">{{ log.sku }}</span></td>
           <td>{{ log.name }}</td>
           <td>
             {% if log.action == 'Restock IN' %}
-              <span class="badge badge-in">▲ IN</span>
+              <span class="badge badge-restock-in">Restock In</span>
             {% elif log.action == 'Restock OUT' %}
-              <span class="badge badge-out">▼ OUT</span>
+              <span class="badge badge-restock-out">Restock Out</span>
+            {% elif log.action == 'Sale OUT' %}
+              <span class="badge badge-sale-out">Sale Out</span>
             {% elif log.action == 'Price Change' %}
-              <span class="badge badge-price">$ Price</span>
+              <span class="badge badge-price">Price Change</span>
             {% elif log.action == 'Add Item' %}
-              <span class="badge badge-add">＋ New</span>
+              <span class="badge badge-add-item">Add Item</span>
             {% elif log.action == 'Manual Edit' %}
-              <span class="badge" style="background:#1e3a5f;color:#5ea9ff;">✎ Edit</span>
+              <span class="badge badge-edit">Manual Edit</span>
             {% elif log.action == 'Delete' %}
-              <span class="badge" style="background:#3a1a1a;color:#f87171;">✕ Delete</span>
+              <span class="badge badge-delete">Delete</span>
             {% elif log.action == 'Refund IN' %}
-              <span class="badge" style="background:#2a1a3a;color:#c084fc;">↩ Refund</span>
+              <span class="badge badge-refund">Refund In</span>
             {% else %}
-              <span class="badge">{{ log.action }}</span>
+              <span class="badge badge-default">{{ log.action }}</span>
             {% endif %}
           </td>
           <td style="{% if log.qty_change > 0 %}color:var(--green){% elif log.qty_change < 0 %}color:var(--red){% endif %};">
@@ -139,20 +154,21 @@
 </div>
 
 <script>
+let activeFilter = '';
+
+function setFilter(btn) {
+  document.querySelectorAll('.action-pill').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  activeFilter = btn.dataset.action;
+  filterLogs();
+}
+
 function filterLogs() {
-  const search = document.getElementById('log-search').value.toLowerCase().trim();
-  const action = document.getElementById('log-action-filter').value;
-  const rows   = document.querySelectorAll('#log-tbody tr[data-sku]');
-  let visible  = 0;
+  const rows = document.querySelectorAll('#log-tbody tr[data-action]');
+  let visible = 0;
 
   rows.forEach(function(row) {
-    const matchSearch = !search || (
-      row.dataset.sku.includes(search)  ||
-      row.dataset.name.includes(search) ||
-      row.dataset.note.includes(search)
-    );
-    const matchAction = !action || row.dataset.action === action;
-    const show = matchSearch && matchAction;
+    const show = !activeFilter || row.dataset.action === activeFilter;
     row.style.display = show ? '' : 'none';
     if (show) visible++;
   });

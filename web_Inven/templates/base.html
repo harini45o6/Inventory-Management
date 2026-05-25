@@ -302,10 +302,10 @@
         <a href="{{ url_for('billing') }}" class="{{ 'active' if request.endpoint=='billing' }}">
           <span class="icon">🧾</span> Billing Counter
         </a>
-        <a href="{{ url_for('Cashier my sales') }}" class="{{ 'active' if request.endpoint=='cashier_my_sales' }}">
+        <a href="{{ url_for('cashier_my_sales') }}" class="{{ 'active' if request.endpoint=='cashier_my_sales' }}">
           <span class="icon">📋</span> My Sales
         </a>
-        <a href="{{ url_for('Cashier my customers') }}" class="{{ 'active' if request.endpoint=='cashier_customers' }}">
+        <a href="{{ url_for('cashier_customers') }}" class="{{ 'active' if request.endpoint=='cashier_customers' }}">
           <span class="icon">👥</span> Customers
         </a>
       {% else %}
