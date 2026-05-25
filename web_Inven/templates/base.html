@@ -299,8 +299,14 @@
         <a href="{{ url_for('cashier_dashboard') }}" class="{{ 'active' if request.endpoint=='cashier_dashboard' }}">
           <span class="icon">⊡</span> Dashboard
         </a>
-        <a href="{{ url_for('sales') }}" class="{{ 'active' if request.endpoint=='sales' }}">
-          <span class="icon">⌂</span> Sales / POS
+        <a href="{{ url_for('billing') }}" class="{{ 'active' if request.endpoint=='billing' }}">
+          <span class="icon">🧾</span> Billing Counter
+        </a>
+        <a href="{{ url_for('Cashier my sales') }}" class="{{ 'active' if request.endpoint=='cashier_my_sales' }}">
+          <span class="icon">📋</span> My Sales
+        </a>
+        <a href="{{ url_for('Cashier my customers') }}" class="{{ 'active' if request.endpoint=='cashier_customers' }}">
+          <span class="icon">👥</span> Customers
         </a>
       {% else %}
         <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint=='dashboard' }}">

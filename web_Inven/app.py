@@ -54,7 +54,7 @@ def log_activity(sku, name, action, qty_change, before, after, note):
 def login():
     if "username" in session:
         role = session.get("role", "admin")
-        return redirect(url_for("cashier") if role == "cashier" else url_for("dashboard"))
+        return redirect(url_for("billing") if role == "cashier" else url_for("dashboard"))
 
     error = None
     selected_role = "admin"
@@ -85,7 +85,7 @@ def login():
                     session["role"]     = user["role"]
                     session.permanent   = False
                     if user["role"] == "cashier":
-                        return redirect(url_for("cashier_dashboard"))
+                        return redirect(url_for("billing"))
                     return redirect(url_for("dashboard"))
             else:
                 error = "Invalid username or password."
@@ -178,7 +178,7 @@ def cashier_dashboard():
 
     db.close()
 
-    return render_template("cashier.html",
+    return render_template("cashier Dashboard.html",
         username=session["username"],
         now=now,
         today_count=today_count,
@@ -1491,6 +1491,205 @@ def activity_log():
     logs = cursor.fetchall()
     db.close()
     return render_template("activity_log.html", logs=logs, username=session["username"])
+
+# ── BILLING COUNTER (Cashier POS) ─────────────────────────────────────────────
+
+@app.route("/billing")
+@login_required
+def billing():
+    """Full-screen supermarket POS — cashier only."""
+    db = get_db()
+    cursor = db.cursor(dictionary=True)
+
+    # All products for the product grid
+    cursor.execute("""
+        SELECT sku, name, category, price, stock
+        FROM products
+        ORDER BY category, name
+    """)
+    products = cursor.fetchall()
+
+    # Distinct categories for filter chips
+    cursor.execute("SELECT DISTINCT category FROM products ORDER BY category")
+    categories = [r["category"] for r in cursor.fetchall()]
+
+    # Today's stats
+    cursor.execute("""
+        SELECT COUNT(*) AS v FROM sales
+        WHERE DATE(sale_date) = CURDATE() AND status = 'completed'
+    """)
+    today_count = cursor.fetchone()["v"]
+
+    cursor.execute("""
+        SELECT COALESCE(SUM(total), 0) AS v FROM sales
+        WHERE DATE(sale_date) = CURDATE() AND status = 'completed'
+    """)
+    today_revenue = float(cursor.fetchone()["v"])
+
+    cursor.execute("""
+        SELECT COALESCE(SUM(si.qty), 0) AS v
+        FROM sale_items si
+        JOIN sales s ON si.sale_id = s.id
+        WHERE DATE(s.sale_date) = CURDATE() AND s.status = 'completed'
+    """)
+    today_items = int(cursor.fetchone()["v"])
+
+    # Next invoice number
+    cursor.execute("""
+        SELECT invoice_no FROM sales
+        ORDER BY CAST(SUBSTRING(invoice_no, 4) AS UNSIGNED) DESC
+        LIMIT 1
+    """)
+    last = cursor.fetchone()
+    if last and last["invoice_no"]:
+        num = int(last["invoice_no"].replace("INV", ""))
+        next_invoice = f"INV{num + 1:03d}"
+    else:
+        next_invoice = "INV001"
+
+    db.close()
+
+    return render_template(
+        "billing.html",
+        products=products,
+        categories=categories,
+        today_count=today_count,
+        today_revenue=today_revenue,
+        today_items=today_items,
+        next_invoice=next_invoice,
+        username=session["username"],
+    )
+
+
+@app.route("/billing/next_invoice")
+@login_required
+def billing_next_invoice():
+    """Return the next invoice number as JSON (called after sale to refresh UI)."""
+    db = get_db()
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT invoice_no FROM sales
+        ORDER BY CAST(SUBSTRING(invoice_no, 4) AS UNSIGNED) DESC
+        LIMIT 1
+    """)
+    last = cursor.fetchone()
+    db.close()
+    if last and last["invoice_no"]:
+        num = int(last["invoice_no"].replace("INV", ""))
+        return jsonify({"invoice_no": f"INV{num + 1:03d}"})
+    return jsonify({"invoice_no": "INV001"})
+
+
+@app.route("/billing/today_stats")
+@login_required
+def billing_today_stats():
+    """Return today's summary stats as JSON for live refresh after a sale."""
+    db = get_db()
+    cursor = db.cursor(dictionary=True)
+
+    cursor.execute("""
+        SELECT COUNT(*) AS v FROM sales
+        WHERE DATE(sale_date) = CURDATE() AND status = 'completed'
+    """)
+    today_count = cursor.fetchone()["v"]
+
+    cursor.execute("""
+        SELECT COALESCE(SUM(total), 0) AS v FROM sales
+        WHERE DATE(sale_date) = CURDATE() AND status = 'completed'
+    """)
+    today_revenue = float(cursor.fetchone()["v"])
+
+    cursor.execute("""
+        SELECT COALESCE(SUM(si.qty), 0) AS v
+        FROM sale_items si
+        JOIN sales s ON si.sale_id = s.id
+        WHERE DATE(s.sale_date) = CURDATE() AND s.status = 'completed'
+    """)
+    today_items = int(cursor.fetchone()["v"])
+
+    db.close()
+    return jsonify({
+        "today_count":   today_count,
+        "today_revenue": today_revenue,
+        "today_items":   today_items,
+    })
+
+
+
+
+# ── CASHIER: MY SALES ─────────────────────────────────────────────────────────
+@app.route("/cashier/my-sales")
+@login_required
+def cashier_my_sales():
+    if session.get("role") == "admin":
+        return redirect(url_for("sales"))
+    db = get_db()
+    cursor = db.cursor(dictionary=True)
+
+    date_filter = request.args.get("date", "today")
+
+    if date_filter == "week":
+        date_clause = "AND DATE(s.sale_date) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)"
+    elif date_filter == "month":
+        date_clause = "AND MONTH(s.sale_date) = MONTH(CURDATE()) AND YEAR(s.sale_date) = YEAR(CURDATE())"
+    else:
+        date_filter = "today"
+        date_clause = "AND DATE(s.sale_date) = CURDATE()"
+
+    cursor.execute(f"""
+        SELECT s.id, s.invoice_no,
+               COALESCE(c.name, s.customer, '—') AS customer,
+               c.phone AS customer_phone,
+               s.total, s.sale_date, s.status, s.note,
+               COALESCE(SUM(si.qty), 0) AS item_count
+        FROM sales s
+        LEFT JOIN customers c ON c.id = s.customer_id
+        LEFT JOIN sale_items si ON si.sale_id = s.id
+        WHERE 1=1 {date_clause}
+        GROUP BY s.id ORDER BY s.id DESC
+    """)
+    my_sales = cursor.fetchall()
+
+    cursor.execute(f"""
+        SELECT COUNT(*) AS cnt, COALESCE(SUM(total),0) AS rev
+        FROM sales WHERE status='completed' {date_clause}
+    """)
+    stats = cursor.fetchone()
+
+    db.close()
+    return render_template("cashier_my_sales.html",
+        my_sales=my_sales,
+        total_count=int(stats["cnt"]),
+        total_revenue=float(stats["rev"]),
+        date_filter=date_filter,
+        username=session["username"],
+    )
+
+
+# ── CASHIER: CUSTOMERS ────────────────────────────────────────────────────────
+@app.route("/cashier/customers")
+@login_required
+def cashier_customers():
+    if session.get("role") == "admin":
+        return redirect(url_for("customers"))
+    db = get_db()
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT c.id, c.name, c.phone, c.email, c.created_at,
+               COUNT(s.id) AS total_orders,
+               COALESCE(SUM(s.total), 0) AS total_spent,
+               MAX(s.sale_date) AS last_visit
+        FROM customers c
+        LEFT JOIN sales s ON s.customer_id = c.id
+        GROUP BY c.id ORDER BY c.id DESC
+    """)
+    customer_list = cursor.fetchall()
+    db.close()
+    return render_template("cashier_customers.html",
+        customers=customer_list,
+        username=session["username"],
+    )
+
 
 if __name__ == "__main__":
     app.run(debug=True)

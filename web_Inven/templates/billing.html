@@ -1,0 +1,1393 @@
+{% extends "base.html" %}
+{% block title %}– Billing Counter{% endblock %}
+
+{% block head %}
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   BILLING COUNTER — Supermarket POS Interface
+   Full-screen split layout: left = product scan/search, right = live bill
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Override body layout so billing fills screen without sidebar padding on mobile */
+.main { background: #080a0d; }
+
+:root {
+  --pos-bg:       #080a0d;
+  --pos-panel:    #0f1117;
+  --pos-card:     #141821;
+  --pos-border:   #1e2535;
+  --pos-accent:   #e8c547;
+  --pos-teal:     #4fd1c5;
+  --pos-green:    #3de07a;
+  --pos-red:      #ff5e5e;
+  --pos-blue:     #5ea9ff;
+  --pos-purple:   #b47aff;
+  --pos-text:     #dde3f0;
+  --pos-muted:    #4a5468;
+  --pos-sub:      #8896aa;
+  --font-head:    'Barlow Condensed', sans-serif;
+  --font-mono:    'IBM Plex Mono', monospace;
+}
+
+/* ── FULL SCREEN LAYOUT ── */
+.pos-root {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--pos-bg);
+}
+
+/* ── LEFT PANEL ── */
+.pos-left {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  border-right: 1px solid var(--pos-border);
+}
+
+/* ── TOP BAR ── */
+.pos-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--pos-border);
+  background: var(--pos-panel);
+  flex-shrink: 0;
+}
+.pos-brand {
+  font-family: var(--font-head);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: var(--pos-accent);
+}
+.pos-brand span { color: var(--pos-sub); font-weight: 400; }
+.pos-clock {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--pos-teal);
+  letter-spacing: 2px;
+}
+.pos-cashier {
+  font-size: 11px;
+  color: var(--pos-muted);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+.pos-cashier span { color: var(--pos-text); }
+
+/* ── SCAN BAR ── */
+.pos-scan-area {
+  padding: 18px 24px;
+  background: var(--pos-panel);
+  border-bottom: 1px solid var(--pos-border);
+  flex-shrink: 0;
+}
+.scan-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.scan-icon {
+  font-size: 22px;
+  color: var(--pos-accent);
+}
+.scan-input-wrap {
+  position: relative;
+  flex: 1;
+}
+#scan-input {
+  width: 100%;
+  padding: 12px 16px 12px 44px;
+  background: #0a0d12;
+  border: 2px solid var(--pos-accent);
+  border-radius: 4px;
+  color: var(--pos-text);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  letter-spacing: 1px;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+  caret-color: var(--pos-accent);
+}
+#scan-input:focus {
+  border-color: var(--pos-accent);
+  box-shadow: 0 0 0 3px rgba(232,197,71,.12);
+}
+#scan-input::placeholder { color: var(--pos-muted); font-size: 13px; letter-spacing: 0.5px; }
+.scan-icon-inner {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--pos-muted);
+  font-size: 18px;
+  pointer-events: none;
+}
+.scan-pulse {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--pos-green);
+  flex-shrink: 0;
+  animation: pulse-dot 1.4s ease infinite;
+}
+@keyframes pulse-dot {
+  0%,100% { opacity:1; transform: scale(1); }
+  50%      { opacity:.4; transform: scale(.7); }
+}
+
+/* ── AUTOCOMPLETE ── */
+.scan-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0; right: 0;
+  background: #131824;
+  border: 1px solid var(--pos-border);
+  border-radius: 6px;
+  z-index: 400;
+  max-height: 260px;
+  overflow-y: auto;
+  display: none;
+  box-shadow: 0 12px 40px rgba(0,0,0,.5);
+}
+.scan-dropdown.open { display: block; }
+.sd-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--pos-border);
+  cursor: pointer;
+  transition: background .12s;
+}
+.sd-item:last-child { border-bottom: none; }
+.sd-item:hover, .sd-item.sd-active { background: rgba(232,197,71,.07); }
+.sd-sku {
+  font-size: 10px;
+  color: var(--pos-accent);
+  letter-spacing: 1.5px;
+  font-family: var(--font-mono);
+  min-width: 52px;
+}
+.sd-name { flex: 1; font-size: 13px; color: var(--pos-text); }
+.sd-cat { font-size: 11px; color: var(--pos-muted); }
+.sd-price {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pos-accent);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+.sd-stock-ok  { font-size: 10px; color: var(--pos-green); white-space: nowrap; }
+.sd-stock-low { font-size: 10px; color: var(--pos-red);   white-space: nowrap; }
+
+/* ── CATEGORY QUICK-BROWSE ── */
+.pos-cats {
+  padding: 12px 24px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--pos-border);
+  background: var(--pos-panel);
+  flex-shrink: 0;
+}
+.cat-chip {
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border: 1px solid var(--pos-border);
+  color: var(--pos-sub);
+  cursor: pointer;
+  transition: all .15s;
+  background: transparent;
+  font-family: var(--font-mono);
+}
+.cat-chip:hover, .cat-chip.active {
+  background: rgba(232,197,71,.1);
+  border-color: var(--pos-accent);
+  color: var(--pos-accent);
+}
+.cat-chip.active { font-weight: 600; }
+
+/* ── PRODUCT GRID ── */
+.pos-product-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 24px;
+}
+.pos-product-area::-webkit-scrollbar { width: 4px; }
+.pos-product-area::-webkit-scrollbar-track { background: transparent; }
+.pos-product-area::-webkit-scrollbar-thumb { background: var(--pos-border); border-radius: 2px; }
+
+.prod-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+.prod-card {
+  background: var(--pos-card);
+  border: 1px solid var(--pos-border);
+  border-radius: 6px;
+  padding: 14px 14px 12px;
+  cursor: pointer;
+  transition: all .15s;
+  position: relative;
+  overflow: hidden;
+}
+.prod-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--pos-accent);
+  transform: scaleX(0);
+  transition: transform .15s;
+}
+.prod-card:hover {
+  border-color: rgba(232,197,71,.3);
+  background: #191f2c;
+  transform: translateY(-1px);
+}
+.prod-card:hover::before { transform: scaleX(1); }
+.prod-card:active { transform: scale(.97); }
+.prod-card.out-of-stock { opacity: .4; pointer-events: none; }
+
+.pc-sku {
+  font-size: 10px;
+  color: var(--pos-accent);
+  letter-spacing: 1.5px;
+  font-family: var(--font-mono);
+  margin-bottom: 6px;
+}
+.pc-name {
+  font-size: 13px;
+  color: var(--pos-text);
+  font-weight: 600;
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+.pc-cat {
+  font-size: 10px;
+  color: var(--pos-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+.pc-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.pc-price {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--pos-accent);
+}
+.pc-stock-badge {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-family: var(--font-mono);
+}
+.pc-stock-badge.ok  { background: rgba(61,224,122,.12); color: var(--pos-green); }
+.pc-stock-badge.low { background: rgba(255,94,94,.12);  color: var(--pos-red); }
+.pc-add-indicator {
+  position: absolute;
+  top: 8px; right: 8px;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--pos-accent);
+  color: #000;
+  font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700;
+  opacity: 0;
+  transform: scale(0);
+  transition: all .15s;
+}
+.prod-card:hover .pc-add-indicator {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ── RIGHT PANEL — LIVE BILL ── */
+.pos-right {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--pos-panel);
+  overflow: hidden;
+}
+
+/* ── BILL HEADER ── */
+.bill-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--pos-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.bill-title {
+  font-family: var(--font-head);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--pos-text);
+}
+.bill-inv {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--pos-teal);
+  letter-spacing: 1.5px;
+}
+.btn-clear-bill {
+  background: transparent;
+  border: 1px solid rgba(255,94,94,.3);
+  color: var(--pos-red);
+  padding: 5px 12px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  letter-spacing: 1px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all .15s;
+}
+.btn-clear-bill:hover { background: rgba(255,94,94,.1); border-color: var(--pos-red); }
+
+/* ── CUSTOMER STRIP ── */
+.customer-strip {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--pos-border);
+  flex-shrink: 0;
+}
+.customer-strip label {
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--pos-muted);
+  display: block;
+  margin-bottom: 6px;
+}
+.customer-strip-inner { position: relative; }
+#bill-customer-input {
+  width: 100%;
+  background: var(--pos-bg);
+  border: 1px solid var(--pos-border);
+  border-radius: 4px;
+  color: var(--pos-text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 8px 12px;
+  outline: none;
+  transition: border-color .15s;
+}
+#bill-customer-input:focus { border-color: var(--pos-teal); }
+.customer-ac {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  background: #131824;
+  border: 1px solid var(--pos-border);
+  border-radius: 6px;
+  z-index: 300;
+  display: none;
+  max-height: 180px;
+  overflow-y: auto;
+  box-shadow: 0 8px 30px rgba(0,0,0,.4);
+}
+.customer-ac.open { display: block; }
+.cac-item {
+  padding: 9px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--pos-border);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--pos-text);
+  transition: background .12s;
+}
+.cac-item:last-child { border-bottom: none; }
+.cac-item:hover { background: rgba(79,209,197,.07); }
+.cac-phone { font-size: 11px; color: var(--pos-muted); margin-left: auto; }
+#selected-customer-badge {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  background: rgba(79,209,197,.08);
+  border: 1px solid rgba(79,209,197,.2);
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--pos-teal);
+  margin-top: 6px;
+}
+#selected-customer-badge.show { display: flex; }
+.badge-clear-cust {
+  background: none; border: none;
+  color: var(--pos-muted); cursor: pointer; font-size: 14px;
+  margin-left: auto; padding: 0;
+}
+.badge-clear-cust:hover { color: var(--pos-red); }
+
+/* ── CART ITEMS ── */
+.bill-items {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 0;
+}
+.bill-items::-webkit-scrollbar { width: 3px; }
+.bill-items::-webkit-scrollbar-thumb { background: var(--pos-border); }
+
+.cart-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--pos-muted);
+  text-align: center;
+  gap: 10px;
+  padding: 40px 20px;
+}
+.cart-empty-icon { font-size: 48px; opacity: .3; }
+.cart-empty-text { font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; }
+
+.bill-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  padding: 10px 20px;
+  border-bottom: 1px solid rgba(30,37,53,.8);
+  animation: item-slide-in .2s ease;
+  align-items: center;
+}
+@keyframes item-slide-in {
+  from { opacity:0; transform: translateX(12px); }
+  to   { opacity:1; transform: translateX(0); }
+}
+.bi-name {
+  font-size: 13px;
+  color: var(--pos-text);
+  font-weight: 600;
+  line-height: 1.2;
+  margin-bottom: 2px;
+}
+.bi-sku {
+  font-size: 10px;
+  color: var(--pos-accent);
+  letter-spacing: 1.5px;
+  font-family: var(--font-mono);
+}
+.bi-controls {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+.bi-price {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--pos-accent);
+}
+.bi-unit { font-size: 10px; color: var(--pos-muted); }
+.qty-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.qty-btn {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--pos-border);
+  background: var(--pos-card);
+  color: var(--pos-text);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .12s;
+  padding: 0;
+}
+.qty-btn:hover { border-color: var(--pos-accent); color: var(--pos-accent); }
+.qty-btn.remove { border-color: rgba(255,94,94,.3); color: var(--pos-red); }
+.qty-btn.remove:hover { background: rgba(255,94,94,.1); border-color: var(--pos-red); }
+.qty-val {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--pos-text);
+  min-width: 22px;
+  text-align: center;
+}
+
+/* ── BILL FOOTER ── */
+.bill-footer {
+  border-top: 1px solid var(--pos-border);
+  padding: 14px 20px;
+  background: var(--pos-panel);
+  flex-shrink: 0;
+}
+
+/* Totals */
+.bill-totals { margin-bottom: 14px; }
+.bill-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 12px;
+  color: var(--pos-sub);
+}
+.bill-row.grand {
+  padding-top: 10px;
+  margin-top: 6px;
+  border-top: 2px solid var(--pos-accent);
+  font-size: 20px;
+  font-family: var(--font-head);
+  font-weight: 800;
+  color: var(--pos-text);
+  letter-spacing: 1px;
+}
+.bill-row.grand .grand-amount {
+  color: var(--pos-accent);
+  font-size: 26px;
+  font-family: var(--font-mono);
+}
+
+/* Note */
+.note-row {
+  margin-bottom: 12px;
+}
+.note-row select {
+  width: 100%;
+  background: var(--pos-bg);
+  border: 1px solid var(--pos-border);
+  border-radius: 4px;
+  color: var(--pos-text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 7px 10px;
+  outline: none;
+  cursor: pointer;
+}
+.note-row select:focus { border-color: var(--pos-teal); }
+
+/* Checkout button */
+.btn-checkout {
+  width: 100%;
+  padding: 16px;
+  background: var(--pos-accent);
+  color: #0d0f12;
+  border: none;
+  font-family: var(--font-head);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: opacity .15s, transform .1s;
+  margin-bottom: 8px;
+}
+.btn-checkout:hover { opacity: .9; transform: translateY(-1px); }
+.btn-checkout:active { transform: scale(.99); }
+.btn-checkout:disabled {
+  background: var(--pos-border);
+  color: var(--pos-muted);
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Item count badge */
+.cart-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--pos-accent);
+  color: #000;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 10px;
+  padding: 1px 7px;
+  margin-left: 6px;
+  min-width: 20px;
+}
+
+/* ── SUCCESS OVERLAY ── */
+.success-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.85);
+  z-index: 900;
+  align-items: center;
+  justify-content: center;
+}
+.success-overlay.show { display: flex; }
+.success-card {
+  background: var(--pos-panel);
+  border: 1px solid var(--pos-border);
+  border-top: 3px solid var(--pos-green);
+  border-radius: 8px;
+  padding: 40px 48px;
+  text-align: center;
+  animation: success-pop .3s cubic-bezier(.34,1.56,.64,1);
+  max-width: 420px;
+  width: 90%;
+}
+@keyframes success-pop {
+  from { transform: scale(.8); opacity: 0; }
+  to   { transform: scale(1);  opacity: 1; }
+}
+.success-icon { font-size: 56px; margin-bottom: 14px; }
+.success-title {
+  font-family: var(--font-head);
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--pos-green);
+  letter-spacing: 2px;
+  margin-bottom: 6px;
+}
+.success-inv {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--pos-teal);
+  margin-bottom: 6px;
+  letter-spacing: 2px;
+}
+.success-total {
+  font-family: var(--font-mono);
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--pos-accent);
+  margin: 14px 0;
+}
+.success-customer {
+  font-size: 13px;
+  color: var(--pos-sub);
+  margin-bottom: 24px;
+}
+.success-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.btn-succ {
+  padding: 11px 22px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: opacity .15s;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.btn-succ:hover { opacity: .85; }
+.btn-succ-green  { background: var(--pos-green);  color: #000; }
+.btn-succ-yellow { background: var(--pos-accent); color: #000; }
+.btn-succ-ghost  { background: var(--pos-border); color: var(--pos-text); }
+
+/* ── FEEDBACK TOAST ── */
+.pos-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: #1c2030;
+  border: 1px solid var(--pos-border);
+  border-left: 3px solid var(--pos-green);
+  color: var(--pos-text);
+  padding: 11px 20px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: var(--font-mono);
+  letter-spacing: .5px;
+  z-index: 800;
+  transition: transform .3s ease, opacity .3s;
+  opacity: 0;
+  white-space: nowrap;
+}
+.pos-toast.show {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+.pos-toast.error { border-left-color: var(--pos-red); }
+
+/* ── SCROLLBAR ── */
+.bill-items::-webkit-scrollbar { width: 3px; }
+.pos-product-area::-webkit-scrollbar { width: 4px; }
+
+/* Quick stats strip below topbar */
+.pos-stats-strip {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--pos-border);
+  background: var(--pos-panel);
+  flex-shrink: 0;
+}
+.pss-item {
+  flex: 1;
+  padding: 8px 16px;
+  border-right: 1px solid var(--pos-border);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.pss-item:last-child { border-right: none; }
+.pss-label { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--pos-muted); }
+.pss-value { font-family: var(--font-mono); font-size: 14px; font-weight: 700; color: var(--pos-text); }
+.pss-value.teal   { color: var(--pos-teal); }
+.pss-value.yellow { color: var(--pos-accent); }
+.pss-value.green  { color: var(--pos-green); }
+
+/* Empty cat = show all */
+.no-results {
+  text-align: center;
+  color: var(--pos-muted);
+  padding: 40px 0;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+/* ── BACK LINK ── */
+.back-link {
+  font-size: 11px;
+  color: var(--pos-muted);
+  text-decoration: none;
+  letter-spacing: 1px;
+  transition: color .15s;
+}
+.back-link:hover { color: var(--pos-text); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pos-root">
+
+  <!-- ═══════════ LEFT: PRODUCTS ═══════════ -->
+  <div class="pos-left">
+
+    <!-- Top bar -->
+    <div class="pos-topbar">
+      <div>
+        <div class="pos-brand">SHOP<span>STOCK</span> <span style="font-size:13px;color:var(--pos-teal);letter-spacing:2px;">POS</span></div>
+        <div style="margin-top:2px;">
+          <a href="{{ url_for('cashier_dashboard') }}" class="back-link">← Dashboard</a>
+        </div>
+      </div>
+      <div id="pos-clock" class="pos-clock">00:00:00</div>
+      <div style="text-align:right;">
+        <div class="pos-cashier">Cashier: <span>{{ session.username }}</span></div>
+        <a href="{{ url_for('logout') }}" style="font-size:10px;color:var(--pos-muted);text-decoration:none;letter-spacing:1px;">⏻ Logout</a>
+      </div>
+    </div>
+
+    <!-- Quick stats -->
+    <div class="pos-stats-strip">
+      <div class="pss-item">
+        <div class="pss-label">Today's Bills</div>
+        <div class="pss-value teal" id="stat-count">{{ today_count }}</div>
+      </div>
+      <div class="pss-item">
+        <div class="pss-label">Revenue</div>
+        <div class="pss-value yellow" id="stat-rev">₹{{ "%.0f"|format(today_revenue) }}</div>
+      </div>
+      <div class="pss-item">
+        <div class="pss-label">Items Sold</div>
+        <div class="pss-value green" id="stat-items">{{ today_items }}</div>
+      </div>
+      <div class="pss-item">
+        <div class="pss-label">Products</div>
+        <div class="pss-value">{{ products|length }}</div>
+      </div>
+    </div>
+
+    <!-- Scan bar -->
+    <div class="pos-scan-area">
+      <div class="scan-row">
+        <div class="scan-icon">⊡</div>
+        <div class="scan-input-wrap">
+          <span class="scan-icon-inner">⌕</span>
+          <input type="text" id="scan-input" placeholder="Search product by name or SKU…" autocomplete="off" autofocus>
+          <div class="scan-dropdown" id="scan-dropdown"></div>
+        </div>
+        <div class="scan-pulse" title="Ready to scan"></div>
+      </div>
+    </div>
+
+    <!-- Category chips -->
+    <div class="pos-cats" id="cat-chips">
+      <button class="cat-chip active" data-cat="">All</button>
+      {% for cat in categories %}
+      <button class="cat-chip" data-cat="{{ cat }}">{{ cat }}</button>
+      {% endfor %}
+    </div>
+
+    <!-- Product grid -->
+    <div class="pos-product-area">
+      <div class="prod-grid" id="prod-grid">
+        {% for p in products %}
+        <div class="prod-card {% if p.stock == 0 %}out-of-stock{% endif %}"
+             data-sku="{{ p.sku }}"
+             data-name="{{ p.name }}"
+             data-price="{{ p.price }}"
+             data-stock="{{ p.stock }}"
+             data-cat="{{ p.category }}"
+             onclick="addToCartByCard(this)">
+          <div class="pc-sku">{{ p.sku }}</div>
+          <div class="pc-name">{{ p.name }}</div>
+          <div class="pc-cat">{{ p.category }}</div>
+          <div class="pc-bottom">
+            <div class="pc-price">₹{{ "%.2f"|format(p.price) }}</div>
+            <div class="pc-stock-badge {% if p.stock < 10 %}low{% else %}ok{% endif %}">
+              {{ p.stock }}
+            </div>
+          </div>
+          <div class="pc-add-indicator">+</div>
+        </div>
+        {% else %}
+        <div class="no-results">No products found.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ RIGHT: BILL ═══════════ -->
+  <div class="pos-right">
+
+    <!-- Bill header -->
+    <div class="bill-header">
+      <div>
+        <div class="bill-title">BILL <span class="cart-count-badge" id="cart-count-badge">0</span></div>
+        <div class="bill-inv" id="bill-inv-no">Next: {{ next_invoice }}</div>
+      </div>
+      <button class="btn-clear-bill" onclick="clearBill()">✕ Clear</button>
+    </div>
+
+    <!-- Customer -->
+    <div class="customer-strip">
+      <label>Customer (optional)</label>
+      <div class="customer-strip-inner">
+        <input type="text" id="bill-customer-input" placeholder="Walk-in / type name or phone…" autocomplete="off">
+        <div class="customer-ac" id="customer-ac"></div>
+      </div>
+      <div id="selected-customer-badge">
+        <span id="sel-cust-icon">👤</span>
+        <span id="sel-cust-name"></span>
+        <span id="sel-cust-phone" style="font-size:11px;color:var(--pos-muted);margin-left:4px;"></span>
+        <button class="badge-clear-cust" onclick="clearCustomer()">✕</button>
+      </div>
+    </div>
+
+    <!-- Cart items -->
+    <div class="bill-items" id="bill-items">
+      <div class="cart-empty" id="cart-empty">
+        <div class="cart-empty-icon">🧾</div>
+        <div class="cart-empty-text">Scan or click a product<br>to start billing</div>
+      </div>
+    </div>
+
+    <!-- Bill footer -->
+    <div class="bill-footer">
+      <div class="bill-totals">
+        <div class="bill-row">
+          <span>Subtotal</span>
+          <span id="bill-subtotal">₹0.00</span>
+        </div>
+        <div class="bill-row">
+          <span>Items</span>
+          <span id="bill-item-count">0 units</span>
+        </div>
+        <div class="bill-row grand">
+          <span>TOTAL</span>
+          <span class="grand-amount" id="bill-total">₹0.00</span>
+        </div>
+      </div>
+
+      <div class="note-row">
+        <select id="bill-note">
+          <option value="">— Payment Mode —</option>
+          <option value="Cash">💵 Cash</option>
+          <option value="UPI">📱 UPI</option>
+          <option value="Card">💳 Card</option>
+          <option value="Credit">🤝 Credit</option>
+        </select>
+      </div>
+
+      <!-- Cash tendered / change calculator (shown only for Cash) -->
+      <div id="cash-calc" style="display:none;margin-bottom:10px;">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+          <label style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--pos-muted);white-space:nowrap;">
+            Cash Given
+          </label>
+          <input type="number" id="cash-given" min="0" step="1" placeholder="0"
+                 style="flex:1;background:var(--pos-bg);border:1px solid var(--pos-border);
+                        border-radius:4px;color:var(--pos-text);font-family:var(--font-mono);
+                        font-size:14px;padding:7px 10px;outline:none;text-align:right;"
+                 oninput="calcChange()" onfocus="this.style.borderColor='var(--pos-accent)'"
+                 onblur="this.style.borderColor='var(--pos-border)'">
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;
+                    background:rgba(61,224,122,.07);border:1px solid rgba(61,224,122,.2);
+                    border-radius:4px;padding:8px 12px;">
+          <span style="color:var(--pos-muted);letter-spacing:1px;font-size:11px;text-transform:uppercase;">
+            Change
+          </span>
+          <span id="change-display" style="font-family:var(--font-mono);font-weight:700;
+                color:var(--pos-green);font-size:16px;">₹0.00</span>
+        </div>
+      </div>
+
+      <button class="btn-checkout" id="btn-checkout" onclick="checkout()" disabled>
+        ⊡ CHECKOUT
+      </button>
+      <div style="text-align:center;font-size:10px;color:var(--pos-muted);letter-spacing:1px;">
+        Press <kbd style="background:var(--pos-border);padding:1px 5px;border-radius:2px;font-size:10px;">F2</kbd> to checkout &nbsp;·&nbsp;
+        <kbd style="background:var(--pos-border);padding:1px 5px;border-radius:2px;font-size:10px;">Esc</kbd> to clear
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SUCCESS OVERLAY ═══════════ -->
+<div class="success-overlay" id="success-overlay">
+  <div class="success-card">
+    <div class="success-icon">✅</div>
+    <div class="success-title">SALE COMPLETE</div>
+    <div class="success-inv" id="succ-inv"></div>
+    <div class="success-total" id="succ-total"></div>
+    <div class="success-customer" id="succ-customer"></div>
+    <div class="success-actions">
+      <a href="#" id="succ-print-btn" target="_blank" class="btn-succ btn-succ-yellow">🖨 Print Invoice</a>
+      <button class="btn-succ btn-succ-green" onclick="nextBill()">＋ New Bill</button>
+      <button class="btn-succ btn-succ-ghost" onclick="closeSuccess()">✕ Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ TOAST ═══════════ -->
+<div class="pos-toast" id="pos-toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════════
+let cart = [];         // [{sku, name, price, qty, stock}]
+let selectedCustomer = null;   // {id, name, phone}
+let lastSaleId = null;
+
+// ══════════════════════════════════════════════════════════════
+// CLOCK
+// ══════════════════════════════════════════════════════════════
+function updateClock() {
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  document.getElementById('pos-clock').textContent =
+    `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ══════════════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════════════
+let toastTimer;
+function showToast(msg, isError=false) {
+  const t = document.getElementById('pos-toast');
+  t.textContent = msg;
+  t.className = 'pos-toast show' + (isError ? ' error' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.classList.remove('show'); }, 2600);
+}
+
+// ══════════════════════════════════════════════════════════════
+// PRODUCT SCAN / SEARCH
+// ══════════════════════════════════════════════════════════════
+const scanInput = document.getElementById('scan-input');
+const scanDropdown = document.getElementById('scan-dropdown');
+let searchTimer;
+let ddItems = [];
+let ddIndex = -1;
+
+scanInput.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  const q = scanInput.value.trim();
+  if (q.length < 2) { closeScanDropdown(); return; }
+  searchTimer = setTimeout(() => fetchProducts(q), 200);
+});
+
+scanInput.addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown') { ddIndex = Math.min(ddIndex+1, ddItems.length-1); highlightDD(); e.preventDefault(); }
+  else if (e.key === 'ArrowUp') { ddIndex = Math.max(ddIndex-1, 0); highlightDD(); e.preventDefault(); }
+  else if (e.key === 'Enter') {
+    if (ddIndex >= 0 && ddItems[ddIndex]) addToCart(ddItems[ddIndex]);
+    else if (ddItems.length === 1) addToCart(ddItems[0]);
+    closeScanDropdown();
+    scanInput.value = '';
+    e.preventDefault();
+  }
+  else if (e.key === 'Escape') { closeScanDropdown(); scanInput.value = ''; }
+});
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.scan-input-wrap')) closeScanDropdown();
+});
+
+function fetchProducts(q) {
+  fetch(`/search_products?q=${encodeURIComponent(q)}`)
+    .then(r => r.json())
+    .then(data => {
+      ddItems = data;
+      ddIndex = -1;
+      renderScanDropdown(data);
+    });
+}
+
+function renderScanDropdown(items) {
+  if (!items.length) { closeScanDropdown(); return; }
+  scanDropdown.innerHTML = items.map((p, i) => `
+    <div class="sd-item" data-i="${i}" onclick="addToCartDirect(${i})">
+      <div class="sd-sku">${p.sku}</div>
+      <div class="sd-name">${p.name} <span class="sd-cat">${p.category}</span></div>
+      <div class="sd-price">₹${p.price.toFixed(2)}</div>
+      <div class="${p.stock < 10 ? 'sd-stock-low' : 'sd-stock-ok'}">${p.stock} left</div>
+    </div>
+  `).join('');
+  scanDropdown.classList.add('open');
+}
+
+function highlightDD() {
+  document.querySelectorAll('.sd-item').forEach((el,i) => {
+    el.classList.toggle('sd-active', i === ddIndex);
+  });
+}
+
+function closeScanDropdown() {
+  scanDropdown.classList.remove('open');
+  scanDropdown.innerHTML = '';
+}
+
+function addToCartDirect(i) {
+  addToCart(ddItems[i]);
+  closeScanDropdown();
+  scanInput.value = '';
+  scanInput.focus();
+}
+
+// ══════════════════════════════════════════════════════════════
+// CATEGORY FILTER
+// ══════════════════════════════════════════════════════════════
+document.getElementById('cat-chips').addEventListener('click', e => {
+  const btn = e.target.closest('.cat-chip');
+  if (!btn) return;
+  document.querySelectorAll('.cat-chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  const cat = btn.dataset.cat;
+  document.querySelectorAll('.prod-card').forEach(card => {
+    card.style.display = (!cat || card.dataset.cat === cat) ? '' : 'none';
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+// CART LOGIC
+// ══════════════════════════════════════════════════════════════
+function addToCartByCard(el) {
+  const p = {
+    sku:   el.dataset.sku,
+    name:  el.dataset.name,
+    price: parseFloat(el.dataset.price),
+    stock: parseInt(el.dataset.stock),
+    category: el.dataset.cat
+  };
+  addToCart(p);
+
+  // visual flash
+  el.style.borderColor = 'rgba(232,197,71,.5)';
+  el.style.background  = 'rgba(232,197,71,.08)';
+  setTimeout(() => {
+    el.style.borderColor = '';
+    el.style.background  = '';
+  }, 350);
+}
+
+function addToCart(p) {
+  if (p.stock <= 0) { showToast(`${p.name} is out of stock`, true); return; }
+  const existing = cart.find(c => c.sku === p.sku);
+  if (existing) {
+    if (existing.qty >= p.stock) { showToast(`Max stock reached for ${p.name}`, true); return; }
+    existing.qty++;
+  } else {
+    cart.push({ sku: p.sku, name: p.name, price: p.price, qty: 1, stock: p.stock });
+  }
+  renderBill();
+  showToast(`✓ ${p.name} added`);
+  scanInput.focus();
+}
+
+function changeQty(sku, delta) {
+  const item = cart.find(c => c.sku === sku);
+  if (!item) return;
+  item.qty += delta;
+  if (item.qty <= 0) cart = cart.filter(c => c.sku !== sku);
+  else if (item.qty > item.stock) { item.qty = item.stock; showToast('Max stock reached', true); }
+  renderBill();
+}
+
+function removeItem(sku) {
+  cart = cart.filter(c => c.sku !== sku);
+  renderBill();
+}
+
+function clearBill() {
+  cart = [];
+  clearCustomer();
+  document.getElementById('bill-note').value = '';
+  renderBill();
+  scanInput.focus();
+}
+
+function renderBill() {
+  const container = document.getElementById('bill-items');
+  const emptyEl   = document.getElementById('cart-empty');
+
+  if (cart.length === 0) {
+    container.innerHTML = '';
+    container.appendChild(emptyEl);
+    emptyEl.style.display = 'flex';
+    document.getElementById('bill-subtotal').textContent  = '₹0.00';
+    document.getElementById('bill-total').textContent     = '₹0.00';
+    document.getElementById('bill-item-count').textContent = '0 units';
+    document.getElementById('cart-count-badge').textContent = '0';
+    document.getElementById('btn-checkout').disabled = true;
+    return;
+  }
+
+  emptyEl.style.display = 'none';
+  container.innerHTML = cart.map(item => `
+    <div class="bill-item">
+      <div>
+        <div class="bi-name">${item.name}</div>
+        <div class="bi-sku">${item.sku}</div>
+        <div class="bi-unit">₹${item.price.toFixed(2)} × ${item.qty}</div>
+      </div>
+      <div class="bi-controls">
+        <div class="bi-price">₹${(item.price * item.qty).toFixed(2)}</div>
+        <div class="qty-row">
+          <button class="qty-btn remove" onclick="changeQty('${item.sku}',-1)">−</button>
+          <span class="qty-val">${item.qty}</span>
+          <button class="qty-btn" onclick="changeQty('${item.sku}',1)">+</button>
+          <button class="qty-btn remove" onclick="removeItem('${item.sku}')" title="Remove" style="font-size:11px;width:20px;height:20px;">✕</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  const units = cart.reduce((s, i) => s + i.qty, 0);
+  document.getElementById('bill-subtotal').textContent   = `₹${total.toFixed(2)}`;
+  document.getElementById('bill-total').textContent      = `₹${total.toFixed(2)}`;
+  document.getElementById('bill-item-count').textContent = `${units} unit${units !== 1 ? 's' : ''}`;
+  document.getElementById('cart-count-badge').textContent = cart.length;
+  document.getElementById('btn-checkout').disabled = false;
+}
+
+// ══════════════════════════════════════════════════════════════
+// CUSTOMER AUTOCOMPLETE
+// ══════════════════════════════════════════════════════════════
+const custInput = document.getElementById('bill-customer-input');
+const custAC    = document.getElementById('customer-ac');
+let custTimer;
+
+custInput.addEventListener('input', () => {
+  clearTimeout(custTimer);
+  const q = custInput.value.trim();
+  if (q.length < 1) { custAC.classList.remove('open'); return; }
+  custTimer = setTimeout(() => {
+    fetch(`/search_customers?q=${encodeURIComponent(q)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.length) { custAC.classList.remove('open'); return; }
+        custAC.innerHTML = data.map(c => `
+          <div class="cac-item" onclick="selectCustomer(${c.id}, '${c.name.replace(/'/g,"\\'")}', '${(c.phone||'').replace(/'/g,"\\'")}')">
+            <span>👤</span>
+            <span>${c.name}</span>
+            <span class="cac-phone">${c.phone || ''}</span>
+          </div>
+        `).join('');
+        custAC.classList.add('open');
+      });
+  }, 200);
+});
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.customer-strip-inner')) custAC.classList.remove('open');
+});
+
+function selectCustomer(id, name, phone) {
+  selectedCustomer = { id, name, phone };
+  custInput.style.display = 'none';
+  const badge = document.getElementById('selected-customer-badge');
+  document.getElementById('sel-cust-name').textContent  = name;
+  document.getElementById('sel-cust-phone').textContent = phone ? `· ${phone}` : '';
+  badge.classList.add('show');
+  custAC.classList.remove('open');
+}
+
+function clearCustomer() {
+  selectedCustomer = null;
+  custInput.style.display = '';
+  custInput.value = '';
+  document.getElementById('selected-customer-badge').classList.remove('show');
+}
+
+// ══════════════════════════════════════════════════════════════
+// CHECKOUT
+// ══════════════════════════════════════════════════════════════
+function checkout() {
+  if (!cart.length) return;
+
+  const note       = document.getElementById('bill-note').value;
+  const custName   = custInput.value.trim();
+
+  const payload = {
+    customer_id:   selectedCustomer ? selectedCustomer.id : null,
+    customer_name: selectedCustomer ? selectedCustomer.name : (custName || ''),
+    note:          note,
+    items: cart.map(i => ({
+      sku:        i.sku,
+      name:       i.name,
+      qty:        i.qty,
+      unit_price: i.price,
+    }))
+  };
+
+  const btn = document.getElementById('btn-checkout');
+  btn.disabled = true;
+  btn.textContent = '⏳ Processing…';
+
+  fetch('/sales/add', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(payload),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.error) {
+      showToast(data.error, true);
+      btn.disabled = false;
+      btn.textContent = '⊡ CHECKOUT';
+      return;
+    }
+    lastSaleId = data.sale_id;
+    const total = cart.reduce((s,i) => s + i.price*i.qty, 0);
+    showSuccess(data.invoice_no, total, data.customer, data.sale_id);
+  })
+  .catch(() => {
+    showToast('Connection error. Try again.', true);
+    btn.disabled = false;
+    btn.textContent = '⊡ CHECKOUT';
+  });
+}
+
+function showSuccess(invoice, total, customer, saleId) {
+  document.getElementById('succ-inv').textContent      = invoice;
+  document.getElementById('succ-total').textContent    = `₹${total.toFixed(2)}`;
+  document.getElementById('succ-customer').textContent = customer !== '—' ? `Customer: ${customer}` : 'Walk-in Customer';
+  document.getElementById('succ-print-btn').href       = `/sales/${saleId}/invoice`;
+  document.getElementById('success-overlay').classList.add('show');
+}
+
+function nextBill() {
+  document.getElementById('success-overlay').classList.remove('show');
+  cart = [];
+  clearCustomer();
+  document.getElementById('bill-note').value = '';
+  renderBill();
+
+  // Refresh invoice number
+  fetch('/billing/next_invoice')
+    .then(r => r.json())
+    .then(d => { document.getElementById('bill-inv-no').textContent = `Next: ${d.invoice_no}`; });
+
+  // Update stats
+  fetch('/billing/today_stats')
+    .then(r => r.json())
+    .then(d => {
+      document.getElementById('stat-count').textContent = d.today_count;
+      document.getElementById('stat-rev').textContent   = `₹${d.today_revenue.toFixed(0)}`;
+      document.getElementById('stat-items').textContent = d.today_items;
+    });
+
+  const btn = document.getElementById('btn-checkout');
+  btn.disabled = true;
+  btn.textContent = '⊡ CHECKOUT';
+  scanInput.focus();
+}
+
+function closeSuccess() {
+  document.getElementById('success-overlay').classList.remove('show');
+  nextBill();
+}
+
+// ══════════════════════════════════════════════════════════════
+// KEYBOARD SHORTCUTS
+// ══════════════════════════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  if (e.key === 'F2') { e.preventDefault(); if (!document.getElementById('btn-checkout').disabled) checkout(); }
+  if (e.key === 'Escape') {
+    if (document.getElementById('success-overlay').classList.contains('show')) { closeSuccess(); return; }
+    clearBill();
+  }
+  // Any character key focuses scan bar
+  if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const active = document.activeElement;
+    if (active !== scanInput && active !== custInput && active.tagName !== 'SELECT') {
+      scanInput.focus();
+    }
+  }
+});
+
+// ══════════════════════════════════════════════════════════════
+// CASH CHANGE CALCULATOR
+// ══════════════════════════════════════════════════════════════
+document.getElementById('bill-note').addEventListener('change', function() {
+  const cashCalc = document.getElementById('cash-calc');
+  if (this.value === 'Cash') {
+    cashCalc.style.display = 'block';
+    document.getElementById('cash-given').focus();
+  } else {
+    cashCalc.style.display = 'none';
+  }
+});
+
+function calcChange() {
+  const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  const given = parseFloat(document.getElementById('cash-given').value) || 0;
+  const change = given - total;
+  const el = document.getElementById('change-display');
+  if (change < 0) {
+    el.style.color = 'var(--pos-red)';
+    el.textContent = `−₹${Math.abs(change).toFixed(2)}`;
+  } else {
+    el.style.color = 'var(--pos-green)';
+    el.textContent = `₹${change.toFixed(2)}`;
+  }
+}
+
+// Init
+renderBill();
+</script>
+{% endblock %}
