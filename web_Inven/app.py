@@ -1479,17 +1479,19 @@ def get_categories():
     return jsonify(cats)
 
 # ── ACTIVITY LOG ──────────────────────────────────────────────────────────────
-@app.route("/activity_log")
+@app.route('/activity_log')
 @login_required
 def activity_log():
     db = get_db()
     cursor = db.cursor(dictionary=True)
-    cursor.execute(
-        "SELECT id, datetime, sku, name, action, qty_change, "
-        "stock_before, stock_after, note FROM activity_log ORDER BY id DESC"
-    )
+    cursor.execute("SELECT * FROM activity_log ORDER BY id DESC")
     logs = cursor.fetchall()
-    db.close()
+    
+    # Convert datetime objects to strings
+    for log in logs:
+        if log.get('datetime') and hasattr(log['datetime'], 'strftime'):
+            log['datetime'] = log['datetime'].strftime('%Y-%m-%d %H:%M:%S')
+    
     return render_template("activity_log.html", logs=logs, username=session["username"])
 
 # ── BILLING COUNTER (Cashier POS) ─────────────────────────────────────────────

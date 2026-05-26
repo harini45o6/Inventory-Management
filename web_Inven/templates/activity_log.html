@@ -3,12 +3,90 @@
 
 {% block content %}
 <style>
+/* ── Toolbar row ── */
+.log-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+  max-width: 340px;
+}
+.search-wrap .search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: 13px;
+  pointer-events: none;
+}
+.search-wrap input {
+  width: 100%;
+  padding: 9px 14px 9px 34px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  outline: none;
+  transition: border-color .15s;
+}
+.search-wrap input:focus { border-color: var(--accent); }
+.search-wrap input::placeholder { color: var(--muted); }
+
+/* ── Date range inputs ── */
+.date-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.date-range input[type="date"] {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 8px 10px;
+  outline: none;
+  transition: border-color .15s;
+  color-scheme: dark;
+}
+.date-range input[type="date"]:focus { border-color: var(--accent); }
+.date-range .sep { font-size: 11px; color: var(--muted); }
+
+.btn-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--border);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background .15s;
+  white-space: nowrap;
+}
+.btn-export:hover { background: var(--accent); color: #0d0f12; }
+
 /* ── Action filter pills ── */
 .action-filters {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
   align-items: center;
 }
 .action-pill {
@@ -27,8 +105,8 @@
 }
 .action-pill:hover { color: var(--text); border-color: var(--text); }
 
-.action-pill[data-action=""]          { border-color: var(--accent); color: var(--accent); }
-.action-pill[data-action=""].active   { background: var(--accent); color: #0d0f12; }
+.action-pill[data-action=""]         { border-color: var(--accent); color: var(--accent); }
+.action-pill[data-action=""].active  { background: var(--accent); color: #0d0f12; }
 
 .action-pill[data-action="Restock IN"]        { border-color: var(--green); color: var(--green); }
 .action-pill[data-action="Restock IN"].active { background: var(--green); color: #0d0f12; }
@@ -45,16 +123,13 @@
 .action-pill[data-action="Price Change"]        { border-color: var(--blue); color: var(--blue); }
 .action-pill[data-action="Price Change"].active { background: var(--blue); color: #0d0f12; }
 
-.action-pill[data-action="Manual Edit"]        { border-color: #5ea9ff; color: #5ea9ff; }
-.action-pill[data-action="Manual Edit"].active { background: #5ea9ff; color: #0d0f12; }
-
 .action-pill[data-action="Delete"]        { border-color: #f87171; color: #f87171; }
 .action-pill[data-action="Delete"].active { background: #f87171; color: #fff; }
 
 .action-pill[data-action="Refund IN"]        { border-color: #c084fc; color: #c084fc; }
 .action-pill[data-action="Refund IN"].active { background: #c084fc; color: #0d0f12; }
 
-#log-count { font-size: 12px; color: var(--muted); margin-left: auto; white-space: nowrap; }
+#log-count { font-size: 12px; color: var(--muted); white-space: nowrap; margin-left: auto; }
 
 /* ── Action badge colors in table ── */
 .badge-restock-in  { background: rgba(94,240,138,.12);  color: #5ef08a; }
@@ -62,10 +137,58 @@
 .badge-sale-out    { background: rgba(255,159,67,.12);  color: #ff9f43; }
 .badge-add-item    { background: rgba(232,197,71,.12);  color: #e8c547; }
 .badge-price       { background: rgba(94,169,255,.12);  color: #5ea9ff; }
-.badge-edit        { background: rgba(94,169,255,.08);  color: #7ec8ff; }
 .badge-delete      { background: rgba(248,113,113,.12); color: #f87171; }
 .badge-refund      { background: rgba(192,132,252,.12); color: #c084fc; }
 .badge-default     { background: rgba(255,255,255,.06); color: var(--muted); }
+
+/* ── Qty delta cell ── */
+.qty-pos { color: var(--green); font-weight: 600; }
+.qty-neg { color: var(--red);   font-weight: 600; }
+.qty-nil { color: var(--muted); }
+
+/* ── Highlight on search match ── */
+mark {
+  background: rgba(232,197,71,.25);
+  color: var(--accent);
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+/* ── Clear search btn ── */
+.clear-search {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  display: none;
+  line-height: 1;
+}
+.clear-search:hover { color: var(--text); }
+
+/* ── No results ── */
+#no-results-msg {
+  display: none;
+  text-align: center;
+  color: var(--muted);
+  padding: 40px;
+  font-size: 13px;
+}
+
+/* ── Sortable headers ── */
+thead th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+thead th.sortable:hover { color: var(--accent); }
+thead th .sort-icon { font-size: 10px; margin-left: 4px; opacity: .4; }
+thead th.sort-asc .sort-icon::after  { content: '▲'; opacity: 1; color: var(--accent); }
+thead th.sort-desc .sort-icon::after { content: '▼'; opacity: 1; color: var(--accent); }
+thead th:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
 </style>
 
 <div class="topbar">
@@ -75,29 +198,53 @@
 
 <div class="content">
 
-  <!-- Action filter pills -->
-  <div class="action-filters">
-    <button class="action-pill active" data-action="" onclick="setFilter(this)">All</button>
-    <button class="action-pill" data-action="Restock IN"  onclick="setFilter(this)">Restock In</button>
-    <button class="action-pill" data-action="Restock OUT" onclick="setFilter(this)">Restock Out</button>
-    <button class="action-pill" data-action="Sale OUT"    onclick="setFilter(this)">Sale Out</button>
-    <button class="action-pill" data-action="Add Item"    onclick="setFilter(this)">Add Item</button>
-    <button class="action-pill" data-action="Price Change" onclick="setFilter(this)">Price Change</button>
-    <button class="action-pill" data-action="Manual Edit" onclick="setFilter(this)">Manual Edit</button>
-    <button class="action-pill" data-action="Delete"      onclick="setFilter(this)">Delete</button>
-    <button class="action-pill" data-action="Refund IN"   onclick="setFilter(this)">Refund In</button>
+  <!-- ── Toolbar: search + date range + export ── -->
+  <div class="log-toolbar">
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input
+        type="search"
+        id="log-search"
+        placeholder="Search SKU, product, note…"
+        oninput="onSearchInput()"
+        autocomplete="off"
+      >
+      <button class="clear-search" id="clear-btn" onclick="clearSearch()" title="Clear search">✕</button>
+    </div>
+
+    <div class="date-range">
+      <input type="date" id="date-from" onchange="applyFilters()" title="From date">
+      <span class="sep">→</span>
+      <input type="date" id="date-to"   onchange="applyFilters()" title="To date">
+      <button class="btn-export" onclick="clearDates()" title="Clear date range" style="padding:8px 10px;">✕</button>
+    </div>
+
+    <button class="btn-export" onclick="exportCSV()">⬇ Export CSV</button>
   </div>
 
+  <!-- ── Action filter pills ── -->
+  <div class="action-filters">
+    <button class="action-pill active" data-action="" onclick="setFilter(this)">All</button>
+    <button class="action-pill" data-action="Restock IN"   onclick="setFilter(this)">Restock In</button>
+    <button class="action-pill" data-action="Restock OUT"  onclick="setFilter(this)">Restock Out</button>
+    <button class="action-pill" data-action="Sale OUT"     onclick="setFilter(this)">Sale Out</button>
+    <button class="action-pill" data-action="Add Item"     onclick="setFilter(this)">Add Item</button>
+    <button class="action-pill" data-action="Price Change" onclick="setFilter(this)">Price Change</button>
+    <button class="action-pill" data-action="Delete"       onclick="setFilter(this)">Delete</button>
+    <button class="action-pill" data-action="Refund IN"    onclick="setFilter(this)">Refund In</button>
+  </div>
+
+  <!-- ── Table ── -->
   <div class="table-wrap">
     <table id="log-table">
       <thead>
         <tr>
-          <th>#</th>
-          <th>Date / Time</th>
+          <th class="sortable" data-col="0" onclick="sortTable(0)">#<span class="sort-icon"></span></th>
+          <th class="sortable" data-col="1" onclick="sortTable(1)">Date / Time<span class="sort-icon"></span></th>
           <th>SKU</th>
-          <th>Product</th>
+          <th class="sortable" data-col="3" onclick="sortTable(3)">Product<span class="sort-icon"></span></th>
           <th>Action</th>
-          <th>Qty Δ</th>
+          <th class="sortable" data-col="5" onclick="sortTable(5)">Qty Δ<span class="sort-icon"></span></th>
           <th>Before</th>
           <th>After</th>
           <th>Note</th>
@@ -105,11 +252,16 @@
       </thead>
       <tbody id="log-tbody">
         {% for log in logs %}
-        <tr data-action="{{ log.action }}">
+        <tr
+          data-action="{{ log.action }}"
+          data-search="{{ (log.sku ~ ' ' ~ log.name ~ ' ' ~ (log.note or ''))|lower }}"
+          data-date="{{ log.datetime[:10] if log.datetime else '' }}"
+          data-qty="{{ log.qty_change }}"
+        >
           <td style="color:var(--muted);">{{ log.id }}</td>
-          <td style="font-size:11px;white-space:nowrap;">{{ log.datetime }}</td>
+          <td style="font-size:11px;white-space:nowrap;" data-raw="{{ log.datetime }}">{{ log.datetime }}</td>
           <td><span class="sku-tag">{{ log.sku }}</span></td>
-          <td>{{ log.name }}</td>
+          <td class="prod-name">{{ log.name }}</td>
           <td>
             {% if log.action == 'Restock IN' %}
               <span class="badge badge-restock-in">Restock In</span>
@@ -121,8 +273,6 @@
               <span class="badge badge-price">Price Change</span>
             {% elif log.action == 'Add Item' %}
               <span class="badge badge-add-item">Add Item</span>
-            {% elif log.action == 'Manual Edit' %}
-              <span class="badge badge-edit">Manual Edit</span>
             {% elif log.action == 'Delete' %}
               <span class="badge badge-delete">Delete</span>
             {% elif log.action == 'Refund IN' %}
@@ -131,15 +281,15 @@
               <span class="badge badge-default">{{ log.action }}</span>
             {% endif %}
           </td>
-          <td style="{% if log.qty_change > 0 %}color:var(--green){% elif log.qty_change < 0 %}color:var(--red){% endif %};">
+          <td class="{% if log.qty_change > 0 %}qty-pos{% elif log.qty_change < 0 %}qty-neg{% else %}qty-nil{% endif %}">
             {% if log.qty_change > 0 %}+{% endif %}{{ log.qty_change }}
           </td>
           <td>{{ log.stock_before }}</td>
           <td>{{ log.stock_after }}</td>
-          <td style="font-size:11px;color:var(--muted);max-width:200px;">{{ log.note }}</td>
+          <td class="note-cell" style="font-size:11px;color:var(--muted);max-width:200px;">{{ log.note or '—' }}</td>
         </tr>
         {% else %}
-        <tr>
+        <tr id="empty-row">
           <td colspan="9" style="text-align:center;color:var(--muted);padding:40px;">
             No activity recorded yet.
           </td>
@@ -147,35 +297,174 @@
         {% endfor %}
       </tbody>
     </table>
-    <p id="no-results-msg" style="display:none;text-align:center;color:var(--muted);padding:40px;font-size:13px;">
-      No matching records found.
-    </p>
+    <p id="no-results-msg">No matching records found.</p>
   </div>
 </div>
 
 <script>
 let activeFilter = '';
+let activeSearch  = '';
+let activeDateFrom = '';
+let activeDateTo   = '';
+let sortCol = -1;
+let sortAsc = true;
 
+/* ── Filter pill ── */
 function setFilter(btn) {
   document.querySelectorAll('.action-pill').forEach(p => p.classList.remove('active'));
   btn.classList.add('active');
   activeFilter = btn.dataset.action;
-  filterLogs();
+  applyFilters();
 }
 
-function filterLogs() {
+/* ── Search input ── */
+function onSearchInput() {
+  activeSearch = document.getElementById('log-search').value.trim().toLowerCase();
+  document.getElementById('clear-btn').style.display = activeSearch ? 'block' : 'none';
+  applyFilters();
+}
+function clearSearch() {
+  document.getElementById('log-search').value = '';
+  activeSearch = '';
+  document.getElementById('clear-btn').style.display = 'none';
+  applyFilters();
+}
+
+/* ── Date range ── */
+function clearDates() {
+  document.getElementById('date-from').value = '';
+  document.getElementById('date-to').value   = '';
+  activeDateFrom = '';
+  activeDateTo   = '';
+  applyFilters();
+}
+
+/* ── Combined filter logic ── */
+function applyFilters() {
+  activeDateFrom = document.getElementById('date-from').value;
+  activeDateTo   = document.getElementById('date-to').value;
+
   const rows = document.querySelectorAll('#log-tbody tr[data-action]');
   let visible = 0;
 
   rows.forEach(function(row) {
-    const show = !activeFilter || row.dataset.action === activeFilter;
+    // Action pill filter
+    const actionMatch = !activeFilter || row.dataset.action === activeFilter;
+
+    // Search filter — checks SKU, product name, note
+    const searchMatch = !activeSearch || row.dataset.search.includes(activeSearch);
+
+    // Date filter
+    const rowDate = row.dataset.date || '';
+    const dateFromMatch = !activeDateFrom || rowDate >= activeDateFrom;
+    const dateToMatch   = !activeDateTo   || rowDate <= activeDateTo;
+
+    const show = actionMatch && searchMatch && dateFromMatch && dateToMatch;
     row.style.display = show ? '' : 'none';
+
+    // Highlight search term in product name and note cells
+    if (show && activeSearch) {
+      highlightCell(row.querySelector('.prod-name'), activeSearch);
+      highlightCell(row.querySelector('.note-cell'), activeSearch);
+    } else {
+      unhighlightCell(row.querySelector('.prod-name'));
+      unhighlightCell(row.querySelector('.note-cell'));
+    }
+
     if (show) visible++;
   });
 
-  document.getElementById('log-count').textContent = visible + ' record' + (visible !== 1 ? 's' : '');
+  document.getElementById('log-count').textContent =
+    visible + ' record' + (visible !== 1 ? 's' : '');
   document.getElementById('no-results-msg').style.display =
     (rows.length > 0 && visible === 0) ? 'block' : 'none';
+}
+
+/* ── Highlight helpers ── */
+function highlightCell(cell, term) {
+  if (!cell) return;
+  const orig = cell.dataset.orig || cell.textContent;
+  cell.dataset.orig = orig;
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  cell.innerHTML = orig.replace(
+    new RegExp(`(${escaped})`, 'gi'),
+    '<mark>$1</mark>'
+  );
+}
+function unhighlightCell(cell) {
+  if (!cell) return;
+  if (cell.dataset.orig) {
+    cell.textContent = cell.dataset.orig;
+    delete cell.dataset.orig;
+  }
+}
+
+/* ── Column sort ── */
+function sortTable(col) {
+  const headers = document.querySelectorAll('thead th');
+  if (sortCol === col) {
+    sortAsc = !sortAsc;
+  } else {
+    sortCol = col;
+    sortAsc = true;
+    headers.forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+  }
+  headers[col].classList.toggle('sort-asc',  sortAsc);
+  headers[col].classList.toggle('sort-desc', !sortAsc);
+
+  const tbody = document.getElementById('log-tbody');
+  const rows  = Array.from(tbody.querySelectorAll('tr[data-action]'));
+
+  rows.sort((a, b) => {
+    let aVal = a.cells[col]?.textContent.trim() || '';
+    let bVal = b.cells[col]?.textContent.trim() || '';
+
+    // Numeric sort for #, Qty Δ columns
+    if (col === 0 || col === 5) {
+      aVal = parseFloat(aVal) || 0;
+      bVal = parseFloat(bVal) || 0;
+      return sortAsc ? aVal - bVal : bVal - aVal;
+    }
+    // Date sort
+    if (col === 1) {
+      aVal = a.querySelector('[data-raw]')?.dataset.raw || '';
+      bVal = b.querySelector('[data-raw]')?.dataset.raw || '';
+    }
+    return sortAsc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+  });
+
+  rows.forEach(r => tbody.appendChild(r));
+}
+
+/* ── Export visible rows to CSV ── */
+function exportCSV() {
+  const headers = ['#', 'Date/Time', 'SKU', 'Product', 'Action', 'Qty Change', 'Stock Before', 'Stock After', 'Note'];
+  const rows = Array.from(document.querySelectorAll('#log-tbody tr[data-action]'))
+    .filter(r => r.style.display !== 'none');
+
+  if (!rows.length) { alert('No records to export.'); return; }
+
+  const csv = [headers.join(',')];
+  rows.forEach(r => {
+    const cells = Array.from(r.cells).map((c, i) => {
+      // Get plain text (strip HTML badges etc.)
+      let val = c.textContent.trim().replace(/\s+/g, ' ');
+      // Wrap in quotes if contains comma or quote
+      if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+        val = '"' + val.replace(/"/g, '""') + '"';
+      }
+      return val;
+    });
+    csv.push(cells.join(','));
+  });
+
+  const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'activity_log_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 </script>
 {% endblock %}
