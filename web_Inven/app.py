@@ -883,10 +883,10 @@ def search_customers():
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
         SELECT id, name, phone, email FROM customers
-        WHERE name LIKE %s
+        WHERE name LIKE %s OR phone LIKE %s
         ORDER BY name ASC
         LIMIT 8
-    """, (f"%{q}%",))
+    """, (f"%{q}%", f"%{q}%"))
     results = cursor.fetchall()
     db.close()
     return jsonify(results)
@@ -1011,10 +1011,10 @@ def sales_add():
             customer_phone = data.get("customer_phone", "").strip() or None
             customer_email = data.get("customer_email", "").strip() or None
             cursor.execute(
-            "INSERT INTO customers (name, phone, email) VALUES (%s, %s, %s)",
-            (customer_name, customer_phone, customer_email)
-        )
-        customer_id = cursor.lastrowid
+                "INSERT INTO customers (name, phone, email) VALUES (%s, %s, %s)",
+                (customer_name, customer_phone, customer_email)
+            )
+            customer_id = cursor.lastrowid
 
         # Validate stock
         for item in items:
@@ -1479,19 +1479,21 @@ def get_categories():
     return jsonify(cats)
 
 # ── ACTIVITY LOG ──────────────────────────────────────────────────────────────
-@app.route('/activity_log')
+@app.route("/activity_log")
 @login_required
 def activity_log():
     db = get_db()
     cursor = db.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM activity_log ORDER BY id DESC")
+    cursor.execute(
+        "SELECT id, datetime, sku, name, action, qty_change, "
+        "stock_before, stock_after, note FROM activity_log ORDER BY id DESC"
+    )
     logs = cursor.fetchall()
-    
-    # Convert datetime objects to strings
+    db.close()
+    # Convert datetime objects to strings so the template can slice/display them safely
     for log in logs:
-        if log.get('datetime') and hasattr(log['datetime'], 'strftime'):
-            log['datetime'] = log['datetime'].strftime('%Y-%m-%d %H:%M:%S')
-    
+        if log.get("datetime") and hasattr(log["datetime"], "strftime"):
+            log["datetime"] = log["datetime"].strftime("%Y-%m-%d %H:%M:%S")
     return render_template("activity_log.html", logs=logs, username=session["username"])
 
 # ── BILLING COUNTER (Cashier POS) ─────────────────────────────────────────────
@@ -1687,11 +1689,72 @@ def cashier_customers():
         GROUP BY c.id ORDER BY c.id DESC
     """)
     customer_list = cursor.fetchall()
+    # Convert datetime objects to strings for JSON safety
+    for c in customer_list:
+        if c.get("last_visit") and hasattr(c["last_visit"], "strftime"):
+            c["last_visit"] = c["last_visit"].strftime("%Y-%m-%d %H:%M:%S")
+        if c.get("created_at") and hasattr(c["created_at"], "strftime"):
+            c["created_at"] = c["created_at"].strftime("%Y-%m-%d %H:%M:%S")
     db.close()
     return render_template("Cashier my customers.html",
         customers=customer_list,
         username=session["username"],
     )
+
+
+# ── CASHIER: CUSTOMER SALES (JSON for modal) ──────────────────────────────────
+@app.route("/cashier/customers/<int:customer_id>/sales")
+@login_required
+def cashier_customer_sales(customer_id):
+    """Return all sales for a customer as JSON — used by the refund modal."""
+    db = get_db()
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT s.id, s.invoice_no, s.total, s.sale_date, s.status, s.note,
+               COALESCE(SUM(si.qty), 0) AS item_count
+        FROM sales s
+        LEFT JOIN sale_items si ON si.sale_id = s.id
+        WHERE s.customer_id = %s
+        GROUP BY s.id
+        ORDER BY s.id DESC
+    """, (customer_id,))
+    sales = cursor.fetchall()
+    db.close()
+    result = []
+    for s in sales:
+        result.append({
+            "id":         s["id"],
+            "invoice_no": s["invoice_no"],
+            "total":      float(s["total"]),
+            "sale_date":  s["sale_date"].strftime("%d %b %Y, %I:%M %p") if s["sale_date"] else "—",
+            "status":     s["status"],
+            "note":       s["note"] or "",
+            "item_count": int(s["item_count"]),
+        })
+    return jsonify(result)
+
+
+@app.route("/cashier/sales/<int:sale_id>/items")
+@login_required
+def cashier_sale_items(sale_id):
+    """Return line items for a specific sale — used by the refund detail view."""
+    db = get_db()
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT si.sku, si.name, si.qty, si.unit_price, si.line_total
+        FROM sale_items si
+        WHERE si.sale_id = %s
+        ORDER BY si.id
+    """, (sale_id,))
+    items = cursor.fetchall()
+    db.close()
+    return jsonify([{
+        "sku":        r["sku"],
+        "name":       r["name"],
+        "qty":        int(r["qty"]),
+        "unit_price": float(r["unit_price"]),
+        "line_total": float(r["line_total"]),
+    } for r in items])
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@
 :root { --ca: #4fd1c5; }
 .sidebar nav a.active { border-left-color: var(--ca); background: rgba(79,209,197,.06); color: var(--text); }
 
+/* ── Search bar ── */
 .search-bar {
   display: flex;
   gap: 10px;
@@ -25,6 +26,128 @@
   transition: border-color .15s;
 }
 .search-bar input:focus { border-color: var(--ca); }
+
+/* ── View purchases button ── */
+.btn-view {
+  font-size: 10px;
+  padding: 5px 12px;
+  background: rgba(79,209,197,.12);
+  color: var(--ca);
+  border: 1px solid var(--ca);
+  border-radius: 2px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.btn-view:hover { background: var(--ca); color: #0d0f12; }
+
+/* ── Purchases modal — wider ── */
+.modal-lg {
+  width: 680px;
+  max-width: 96vw;
+  padding: 28px 32px;
+}
+.modal-lg h2 { margin-bottom: 6px; }
+.modal-lg .sub {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 20px;
+  letter-spacing: 1px;
+}
+
+/* ── Sales table inside modal ── */
+.sales-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.sales-table th {
+  font-family: var(--font-head);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.sales-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(31,36,48,.6);
+  vertical-align: middle;
+}
+.sales-table tr:last-child td { border-bottom: none; }
+.sales-table tr:hover { background: rgba(79,209,197,.03); }
+
+/* ── Refund button in modal ── */
+.btn-refund {
+  font-size: 10px;
+  padding: 5px 11px;
+  background: rgba(255,94,94,.1);
+  color: var(--red);
+  border: 1px solid var(--red);
+  border-radius: 2px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  transition: all .15s;
+}
+.btn-refund:hover { background: var(--red); color: #fff; }
+.btn-refund:disabled { opacity: .35; cursor: not-allowed; }
+
+/* ── Summary strip in modal ── */
+.cust-summary {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.csum {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--ca);
+  padding: 10px 16px;
+  flex: 1;
+}
+.csum-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+.csum-val { font-family: var(--font-head); font-size: 22px; font-weight: 800; color: var(--ca); }
+.csum-val.yellow { color: var(--accent); }
+
+/* ── Loading / empty state ── */
+.modal-loading { text-align: center; padding: 32px; color: var(--muted); font-size: 12px; letter-spacing: 1px; }
+
+/* ── Refund confirm mini-modal ── */
+.confirm-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.75);
+  z-index: 1100;
+  align-items: center;
+  justify-content: center;
+}
+.confirm-overlay.open { display: flex; }
+.confirm-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--red);
+  border-radius: 4px;
+  padding: 28px 32px;
+  width: 360px;
+  max-width: 94vw;
+  text-align: center;
+  animation: modal-in .2s ease;
+}
+.confirm-box h3 {
+  font-family: var(--font-head);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--red);
+  margin-bottom: 10px;
+}
+.confirm-box p { font-size: 12px; color: var(--muted); line-height: 1.7; margin-bottom: 20px; }
+.confirm-box p strong { color: var(--text); }
+.confirm-actions { display: flex; gap: 10px; }
+.confirm-actions .btn { flex: 1; justify-content: center; }
 </style>
 {% endblock %}
 
@@ -53,6 +176,7 @@
           <th>Orders</th>
           <th>Total Spent</th>
           <th>Last Visit</th>
+          <th></th>
         </tr>
       </thead>
       <tbody id="cust-tbody">
@@ -65,12 +189,20 @@
           <td style="color:var(--muted);">{{ c.total_orders }}</td>
           <td style="font-weight:600;color:var(--accent);">₹{{ "%.2f"|format(c.total_spent) }}</td>
           <td style="font-size:11px;color:var(--muted);">
-            {{ c.last_visit.strftime('%d %b %Y') if c.last_visit else '—' }}
+            {% if c.last_visit %}
+              {{ c.last_visit[:10] }}
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            <button class="btn-view"
+              onclick="openPurchases({{ c.id }}, '{{ c.name|replace("'", "\\'") }}')">
+              📋 Purchases
+            </button>
           </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="7" style="text-align:center;color:var(--muted);padding:40px;">
+          <td colspan="8" style="text-align:center;color:var(--muted);padding:40px;">
             No customers yet.
           </td>
         </tr>
@@ -80,7 +212,7 @@
   </div>
 </div>
 
-<!-- Add Customer Modal -->
+<!-- ══ Add Customer Modal ══════════════════════════════════════════ -->
 <div class="modal-overlay" id="add-modal">
   <div class="modal">
     <button class="close-modal" onclick="document.getElementById('add-modal').classList.remove('open')">✕</button>
@@ -100,13 +232,62 @@
       </div>
       <div class="modal-actions">
         <button type="submit" class="btn btn-yellow">＋ Add Customer</button>
-        <button type="button" class="btn btn-ghost" onclick="document.getElementById('add-modal').classList.remove('open')">Cancel</button>
+        <button type="button" class="btn btn-ghost"
+          onclick="document.getElementById('add-modal').classList.remove('open')">Cancel</button>
       </div>
     </form>
   </div>
 </div>
 
+<!-- ══ Purchase History + Refund Modal ════════════════════════════ -->
+<div class="modal-overlay" id="purchases-modal">
+  <div class="modal modal-lg">
+    <button class="close-modal" onclick="closePurchases()">✕</button>
+    <h2 id="pm-title">PURCHASE HISTORY</h2>
+    <div class="sub" id="pm-sub">Loading…</div>
+
+    <!-- Summary strip -->
+    <div class="cust-summary" id="pm-summary" style="display:none;">
+      <div class="csum">
+        <div class="csum-label">Total Orders</div>
+        <div class="csum-val" id="pm-orders">—</div>
+      </div>
+      <div class="csum">
+        <div class="csum-label">Total Spent</div>
+        <div class="csum-val yellow" id="pm-spent">—</div>
+      </div>
+      <div class="csum">
+        <div class="csum-label">Refunded</div>
+        <div class="csum-val" style="color:var(--red);" id="pm-refunded">—</div>
+      </div>
+    </div>
+
+    <!-- Sales list -->
+    <div id="pm-body">
+      <div class="modal-loading">Loading purchases…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Refund Confirmation Mini-Modal ════════════════════════════ -->
+<div class="confirm-overlay" id="confirm-modal">
+  <div class="confirm-box">
+    <h3>CONFIRM REFUND</h3>
+    <p id="confirm-text">
+      Refund <strong id="c-invoice">—</strong> for
+      <strong id="c-amount">—</strong>?<br>
+      Stock will be <strong>restocked automatically</strong>.
+      This cannot be undone.
+    </p>
+    <div class="confirm-actions">
+      <button class="btn btn-red" id="confirm-yes" onclick="executeRefund()">↩ Refund</button>
+      <button class="btn btn-ghost" onclick="closeConfirm()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script>
+/* ── Customer search ── */
 function filterCustomers() {
   const q = document.getElementById('cust-search').value.toLowerCase();
   const rows = document.querySelectorAll('#cust-tbody tr[data-search]');
@@ -117,6 +298,257 @@ function filterCustomers() {
     if (show) visible++;
   });
   document.getElementById('cust-count').textContent = visible + ' customers';
+}
+
+/* ── State ── */
+let pendingRefundId   = null;
+let pendingInvoice    = null;
+let pendingAmount     = null;
+let currentCustomerId = null;
+
+/* ── Open purchase history modal ── */
+function openPurchases(customerId, customerName) {
+  currentCustomerId = customerId;
+  document.getElementById('pm-title').textContent = customerName.toUpperCase();
+  document.getElementById('pm-sub').textContent   = 'Loading purchases…';
+  document.getElementById('pm-summary').style.display = 'none';
+  document.getElementById('pm-body').innerHTML =
+    '<div class="modal-loading">⌛ Loading…</div>';
+  document.getElementById('purchases-modal').classList.add('open');
+
+  fetch(`/cashier/customers/${customerId}/sales`)
+    .then(r => r.json())
+    .then(sales => renderSales(sales, customerName))
+    .catch(() => {
+      document.getElementById('pm-body').innerHTML =
+        '<div class="modal-loading" style="color:var(--red);">Failed to load purchases.</div>';
+    });
+}
+
+function closePurchases() {
+  document.getElementById('purchases-modal').classList.remove('open');
+}
+
+/* ── Render sales table inside modal ── */
+function renderSales(sales, customerName) {
+  const sub     = document.getElementById('pm-sub');
+  const summary = document.getElementById('pm-summary');
+  const body    = document.getElementById('pm-body');
+
+  if (!sales.length) {
+    sub.textContent = 'No purchases found for this customer.';
+    body.innerHTML  = '<div class="modal-loading">No sales recorded yet.</div>';
+    return;
+  }
+
+  // Compute summary stats
+  let totalSpent   = 0;
+  let refundCount  = 0;
+  sales.forEach(s => {
+    if (s.status === 'completed') totalSpent += s.total;
+    if (s.status === 'refunded')  refundCount++;
+  });
+
+  sub.textContent = `${sales.length} transaction${sales.length !== 1 ? 's' : ''} found`;
+  summary.style.display = 'flex';
+  document.getElementById('pm-orders').textContent   = sales.length;
+  document.getElementById('pm-spent').textContent    = '₹' + totalSpent.toFixed(2);
+  document.getElementById('pm-refunded').textContent = refundCount;
+
+  // Build table
+  let html = `
+    <div style="overflow-x:auto;max-height:360px;overflow-y:auto;">
+    <table class="sales-table">
+      <thead>
+        <tr>
+          <th>Invoice</th>
+          <th>Date</th>
+          <th>Items</th>
+          <th>Total</th>
+          <th>Note</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+  sales.forEach(s => {
+    const isRefunded  = s.status === 'refunded';
+    const statusBadge = isRefunded
+      ? `<span class="badge badge-out">↩ Refunded</span>`
+      : `<span class="badge badge-in">✓ Completed</span>`;
+
+    const refundBtn = isRefunded
+      ? `<button class="btn-refund" disabled title="Already refunded">↩ Refunded</button>`
+      : `<button class="btn-refund" onclick="askRefund(${s.id}, '${s.invoice_no}', ${s.total})">↩ Refund</button>`;
+
+    html += `
+      <tr id="sale-row-${s.id}" style="cursor:pointer;" onclick="toggleItems(${s.id}, event)">
+        <td><span class="sku-tag">${s.invoice_no}</span></td>
+        <td style="font-size:11px;white-space:nowrap;">${s.sale_date}</td>
+        <td style="color:var(--muted);">${s.item_count} units</td>
+        <td style="font-weight:600;color:var(--accent);">₹${s.total.toFixed(2)}</td>
+        <td style="font-size:11px;color:var(--muted);max-width:120px;">${s.note || '—'}</td>
+        <td id="status-${s.id}">${statusBadge}</td>
+        <td onclick="event.stopPropagation()">${refundBtn}</td>
+      </tr>
+      <tr id="items-row-${s.id}" style="display:none;">
+        <td colspan="7" style="padding:0;background:rgba(0,0,0,.2);">
+          <div id="items-body-${s.id}" style="padding:12px 16px;font-size:12px;color:var(--muted);">
+            Loading items…
+          </div>
+        </td>
+      </tr>`;
+  });
+
+  html += '</tbody></table></div>';
+  body.innerHTML = html;
+}
+
+/* ── Toggle sale items row ── */
+const loadedItems = {};
+function toggleItems(saleId, e) {
+  if (e && e.target.closest('.btn-refund')) return;
+  const row = document.getElementById(`items-row-${saleId}`);
+  if (!row) return;
+  const isOpen = row.style.display !== 'none';
+  if (isOpen) { row.style.display = 'none'; return; }
+  row.style.display = '';
+  if (loadedItems[saleId]) return; // already fetched
+  fetch(`/cashier/sales/${saleId}/items`)
+    .then(r => r.json())
+    .then(items => {
+      loadedItems[saleId] = items;
+      const body = document.getElementById(`items-body-${saleId}`);
+      if (!items.length) { body.textContent = 'No items found.'; return; }
+      body.innerHTML = `
+        <table style="width:100%;border-collapse:collapse;font-size:11px;">
+          <thead>
+            <tr style="color:var(--muted);">
+              <th style="padding:4px 8px;text-align:left;">SKU</th>
+              <th style="padding:4px 8px;text-align:left;">Product</th>
+              <th style="padding:4px 8px;text-align:right;">Qty</th>
+              <th style="padding:4px 8px;text-align:right;">Unit Price</th>
+              <th style="padding:4px 8px;text-align:right;">Line Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map(i => `
+              <tr style="border-top:1px solid rgba(31,36,48,.4);">
+                <td style="padding:6px 8px;color:var(--accent);letter-spacing:1px;">${i.sku}</td>
+                <td style="padding:6px 8px;color:var(--text);">${i.name}</td>
+                <td style="padding:6px 8px;text-align:right;">${i.qty}</td>
+                <td style="padding:6px 8px;text-align:right;">₹${i.unit_price.toFixed(2)}</td>
+                <td style="padding:6px 8px;text-align:right;font-weight:600;color:var(--accent);">₹${i.line_total.toFixed(2)}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>`;
+    })
+    .catch(() => {
+      const body = document.getElementById(`items-body-${saleId}`);
+      if (body) body.textContent = 'Failed to load items.';
+    });
+}
+
+/* ── Ask refund confirmation ── */
+function askRefund(saleId, invoiceNo, total) {
+  pendingRefundId = saleId;
+  pendingInvoice  = invoiceNo;
+  pendingAmount   = total;
+
+  document.getElementById('c-invoice').textContent = invoiceNo;
+  document.getElementById('c-amount').textContent  = '₹' + total.toFixed(2);
+  document.getElementById('confirm-modal').classList.add('open');
+}
+function closeConfirm() {
+  document.getElementById('confirm-modal').classList.remove('open');
+  pendingRefundId = null;
+}
+
+/* ── Execute the refund via existing /sales/<id>/refund endpoint ── */
+function executeRefund() {
+  if (!pendingRefundId) return;
+
+  const yesBtn = document.getElementById('confirm-yes');
+  yesBtn.disabled     = true;
+  yesBtn.textContent  = '⌛ Processing…';
+
+  fetch(`/sales/${pendingRefundId}/refund`, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      closeConfirm();
+      if (data.success) {
+        // Update the row in the open modal without re-fetching
+        const row = document.getElementById(`sale-row-${pendingRefundId}`);
+        if (row) {
+          row.querySelector('#status-' + pendingRefundId).innerHTML =
+            `<span class="badge badge-out">↩ Refunded</span>`;
+          // Replace refund button with disabled state
+          const btn = row.querySelector('.btn-refund');
+          if (btn) {
+            btn.disabled   = true;
+            btn.textContent = '↩ Refunded';
+          }
+        }
+
+        // Update summary stats live
+        const spentEl    = document.getElementById('pm-spent');
+        const refundedEl = document.getElementById('pm-refunded');
+        if (spentEl) {
+          const cur = parseFloat(spentEl.textContent.replace('₹','')) || 0;
+          spentEl.textContent = '₹' + Math.max(0, cur - pendingAmount).toFixed(2);
+        }
+        if (refundedEl) {
+          refundedEl.textContent = parseInt(refundedEl.textContent || '0') + 1;
+        }
+
+        // Flash-style success banner inside modal
+        showModalFlash(
+          `✓ ${data.invoice_no} refunded successfully. Stock has been restocked.`,
+          'success'
+        );
+      } else {
+        showModalFlash('✕ ' + (data.error || 'Refund failed.'), 'error');
+      }
+    })
+    .catch(() => {
+      closeConfirm();
+      showModalFlash('✕ Network error. Please try again.', 'error');
+    })
+    .finally(() => {
+      yesBtn.disabled    = false;
+      yesBtn.textContent = '↩ Refund';
+    });
+}
+
+/* ── Inline flash inside modal ── */
+function showModalFlash(msg, type) {
+  const existing = document.getElementById('modal-flash');
+  if (existing) existing.remove();
+
+  const el = document.createElement('div');
+  el.id    = 'modal-flash';
+  el.style.cssText = `
+    padding: 10px 14px;
+    margin-bottom: 14px;
+    font-size: 12px;
+    letter-spacing: .5px;
+    border-left: 4px solid ${type === 'success' ? 'var(--green)' : 'var(--red)'};
+    background: ${type === 'success' ? 'rgba(94,240,138,.08)' : 'rgba(255,94,94,.08)'};
+    color: ${type === 'success' ? 'var(--green)' : 'var(--red)'};
+    border-radius: 2px;
+  `;
+  el.textContent = msg;
+
+  // Insert before the summary strip
+  const summary = document.getElementById('pm-summary');
+  summary.parentNode.insertBefore(el, summary);
+
+  setTimeout(() => {
+    el.style.transition = 'opacity .5s';
+    el.style.opacity    = '0';
+    setTimeout(() => el.remove(), 500);
+  }, 4000);
 }
 </script>
 {% endblock %}
