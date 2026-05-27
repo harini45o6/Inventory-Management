@@ -179,6 +179,43 @@ mark {
   font-size: 13px;
 }
 
+/* ── Cashier filter pills ── */
+.cashier-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+  align-items: center;
+}
+.cashier-label {
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-right: 4px;
+}
+.cashier-pill {
+  padding: 6px 16px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  border-radius: 2px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  transition: all .15s;
+  user-select: none;
+}
+.cashier-pill:hover { color: var(--text); border-color: var(--text); }
+.cashier-pill[data-cashier=""].active         { background: var(--accent);  border-color: var(--accent);  color: #0d0f12; }
+.cashier-pill[data-cashier="cashier1"].active { background: var(--accent2); border-color: var(--accent2); color: #0d0f12; }
+.cashier-pill[data-cashier="cashier2"].active { background: #c084fc;        border-color: #c084fc;        color: #0d0f12; }
+.cashier-pill[data-cashier=""]        { border-color: var(--accent);  color: var(--accent); }
+.cashier-pill[data-cashier="cashier1"]{ border-color: var(--accent2); color: var(--accent2); }
+.cashier-pill[data-cashier="cashier2"]{ border-color: #c084fc;        color: #c084fc; }
+
 /* ── Sortable headers ── */
 thead th.sortable {
   cursor: pointer;
@@ -231,6 +268,14 @@ thead th:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
     <button class="action-pill" data-action="Add Item"     onclick="setFilter(this)">Add Item</button>
     <button class="action-pill" data-action="Price Change" onclick="setFilter(this)">Price Change</button>
     <button class="action-pill" data-action="Delete"       onclick="setFilter(this)">Delete</button>
+
+  <!-- ── Cashier filter pills ── -->
+  <div class="cashier-filters">
+    <span class="cashier-label">Cashier:</span>
+    <button class="cashier-pill active" data-cashier="" onclick="setCashierFilter(this)">All</button>
+    <button class="cashier-pill" data-cashier="cashier1" onclick="setCashierFilter(this)">⊡ Cashier 1</button>
+    <button class="cashier-pill" data-cashier="cashier2" onclick="setCashierFilter(this)">⊡ Cashier 2</button>
+  </div>
     <button class="action-pill" data-action="Refund IN"    onclick="setFilter(this)">Refund In</button>
   </div>
 
@@ -257,6 +302,7 @@ thead th:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
           data-search="{{ (log.sku ~ ' ' ~ log.name ~ ' ' ~ (log.note or ''))|lower }}"
           data-date="{{ log.datetime[:10] if log.datetime else '' }}"
           data-qty="{{ log.qty_change }}"
+          data-cashier="{{ log.cashier }}"
         >
           <td style="color:var(--muted);">{{ log.id }}</td>
           <td style="font-size:11px;white-space:nowrap;" data-raw="{{ log.datetime }}">{{ log.datetime }}</td>
@@ -306,14 +352,23 @@ let activeFilter = '';
 let activeSearch  = '';
 let activeDateFrom = '';
 let activeDateTo   = '';
+let activeCashier  = '';
 let sortCol = -1;
 let sortAsc = true;
 
-/* ── Filter pill ── */
+/* ── Action filter pill ── */
 function setFilter(btn) {
   document.querySelectorAll('.action-pill').forEach(p => p.classList.remove('active'));
   btn.classList.add('active');
   activeFilter = btn.dataset.action;
+  applyFilters();
+}
+
+/* ── Cashier filter pill ── */
+function setCashierFilter(btn) {
+  document.querySelectorAll('.cashier-pill').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  activeCashier = btn.dataset.cashier;
   applyFilters();
 }
 
@@ -351,6 +406,9 @@ function applyFilters() {
     // Action pill filter
     const actionMatch = !activeFilter || row.dataset.action === activeFilter;
 
+    // Cashier filter — matches data-cashier attribute
+    const cashierMatch = !activeCashier || row.dataset.cashier === activeCashier;
+
     // Search filter — checks SKU, product name, note
     const searchMatch = !activeSearch || row.dataset.search.includes(activeSearch);
 
@@ -359,7 +417,7 @@ function applyFilters() {
     const dateFromMatch = !activeDateFrom || rowDate >= activeDateFrom;
     const dateToMatch   = !activeDateTo   || rowDate <= activeDateTo;
 
-    const show = actionMatch && searchMatch && dateFromMatch && dateToMatch;
+    const show = actionMatch && cashierMatch && searchMatch && dateFromMatch && dateToMatch;
     row.style.display = show ? '' : 'none';
 
     // Highlight search term in product name and note cells

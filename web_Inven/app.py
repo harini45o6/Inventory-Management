@@ -68,7 +68,7 @@ def login():
             db = get_db()
             cursor = db.cursor(dictionary=True)
             cursor.execute(
-                "SELECT username, password, role FROM users WHERE username = %s",
+                "SELECT id, username, password, role FROM users WHERE username = %s",
                 (username,)
             )
             user = cursor.fetchone()
@@ -83,6 +83,7 @@ def login():
                 else:
                     session["username"] = username
                     session["role"]     = user["role"]
+                    session["user_id"]  = user["id"]
                     session.permanent   = False
                     if user["role"] == "cashier":
                         return redirect(url_for("billing"))
@@ -121,31 +122,35 @@ def cashier_dashboard():
     db = get_db()
     cursor = db.cursor(dictionary=True)
     now = datetime.now()
+    cashier_id = session.get("user_id")
 
-    # Today's transaction count
+    # Today's transaction count (this cashier only)
     cursor.execute("""
         SELECT COUNT(*) AS v FROM sales
         WHERE DATE(sale_date) = CURDATE() AND status = 'completed'
-    """)
+        AND cashier_id = %s
+    """, (cashier_id,))
     today_count = cursor.fetchone()["v"]
 
-    # Today's revenue
+    # Today's revenue (this cashier only)
     cursor.execute("""
         SELECT COALESCE(SUM(total), 0) AS v FROM sales
         WHERE DATE(sale_date) = CURDATE() AND status = 'completed'
-    """)
+        AND cashier_id = %s
+    """, (cashier_id,))
     today_revenue = float(cursor.fetchone()["v"])
 
-    # Items sold today
+    # Items sold today (this cashier only)
     cursor.execute("""
         SELECT COALESCE(SUM(si.qty), 0) AS v
         FROM sale_items si
         JOIN sales s ON si.sale_id = s.id
         WHERE DATE(s.sale_date) = CURDATE() AND s.status = 'completed'
-    """)
+        AND s.cashier_id = %s
+    """, (cashier_id,))
     today_items = int(cursor.fetchone()["v"])
 
-    # Recent 8 sales
+    # Recent 8 sales (this cashier only)
     cursor.execute("""
         SELECT s.id, s.invoice_no, COALESCE(c.name, s.customer, '—') AS customer,
                s.total, s.sale_date, s.status,
@@ -153,23 +158,25 @@ def cashier_dashboard():
         FROM sales s
         LEFT JOIN customers c ON c.id = s.customer_id
         LEFT JOIN sale_items si ON si.sale_id = s.id
+        WHERE s.cashier_id = %s
         GROUP BY s.id, s.invoice_no, c.name, s.customer, s.total, s.sale_date, s.status
         ORDER BY s.id DESC LIMIT 8
-    """)
+    """, (cashier_id,))
     recent_sales = cursor.fetchall()
 
-    # Top products today by revenue
+    # Top products today by revenue (this cashier only)
     cursor.execute("""
         SELECT si.name, SUM(si.qty) AS qty, SUM(si.line_total) AS revenue
         FROM sale_items si
         JOIN sales s ON si.sale_id = s.id
         WHERE DATE(s.sale_date) = CURDATE() AND s.status = 'completed'
+        AND s.cashier_id = %s
         GROUP BY si.name
         ORDER BY revenue DESC LIMIT 6
-    """)
+    """, (cashier_id,))
     top_today = cursor.fetchall()
 
-    # Low stock items (cashier awareness)
+    # Low stock items (cashier awareness — shared across all cashiers)
     cursor.execute("""
         SELECT sku, name, category, stock, price
         FROM products WHERE stock < 10 ORDER BY stock ASC LIMIT 6
@@ -1047,9 +1054,9 @@ def sales_add():
 
         # Insert sale header
         cursor.execute("""
-            INSERT INTO sales (invoice_no, customer, customer_id, total, note, status)
-            VALUES (%s, %s, %s, %s, %s, 'completed')
-        """, (invoice_no, display_name, customer_id or None, total, note or None))
+            INSERT INTO sales (invoice_no, customer, customer_id, total, note, status, cashier_id)
+            VALUES (%s, %s, %s, %s, %s, 'completed', %s)
+        """, (invoice_no, display_name, customer_id or None, total, note or None, session.get("user_id")))
         sale_id = cursor.lastrowid
 
         # Insert line items + decrement stock
@@ -1494,6 +1501,12 @@ def activity_log():
     for log in logs:
         if log.get("datetime") and hasattr(log["datetime"], "strftime"):
             log["datetime"] = log["datetime"].strftime("%Y-%m-%d %H:%M:%S")
+        # Extract cashier name from note — notes end with "by <username>"
+        note = log.get("note") or ""
+        if " by " in note:
+            log["cashier"] = note.split(" by ")[-1].strip()
+        else:
+            log["cashier"] = ""
     return render_template("activity_log.html", logs=logs, username=session["username"])
 
 # ── BILLING COUNTER (Cashier POS) ─────────────────────────────────────────────
@@ -1501,7 +1514,7 @@ def activity_log():
 @app.route("/billing")
 @login_required
 def billing():
-    """Full-screen supermarket POS — cashier only."""
+    """Full-screen supermarket — cashier only."""
     db = get_db()
     cursor = db.cursor(dictionary=True)
 
@@ -1517,17 +1530,20 @@ def billing():
     cursor.execute("SELECT DISTINCT category FROM products ORDER BY category")
     categories = [r["category"] for r in cursor.fetchall()]
 
-    # Today's stats
+    # Today's stats (this cashier only)
+    cashier_id = session.get("user_id")
     cursor.execute("""
         SELECT COUNT(*) AS v FROM sales
         WHERE DATE(sale_date) = CURDATE() AND status = 'completed'
-    """)
+        AND cashier_id = %s
+    """, (cashier_id,))
     today_count = cursor.fetchone()["v"]
 
     cursor.execute("""
         SELECT COALESCE(SUM(total), 0) AS v FROM sales
         WHERE DATE(sale_date) = CURDATE() AND status = 'completed'
-    """)
+        AND cashier_id = %s
+    """, (cashier_id,))
     today_revenue = float(cursor.fetchone()["v"])
 
     cursor.execute("""
@@ -1535,7 +1551,8 @@ def billing():
         FROM sale_items si
         JOIN sales s ON si.sale_id = s.id
         WHERE DATE(s.sale_date) = CURDATE() AND s.status = 'completed'
-    """)
+        AND s.cashier_id = %s
+    """, (cashier_id,))
     today_items = int(cursor.fetchone()["v"])
 
     # Next invoice number
@@ -1590,17 +1607,20 @@ def billing_today_stats():
     """Return today's summary stats as JSON for live refresh after a sale."""
     db = get_db()
     cursor = db.cursor(dictionary=True)
+    cashier_id = session.get("user_id")
 
     cursor.execute("""
         SELECT COUNT(*) AS v FROM sales
         WHERE DATE(sale_date) = CURDATE() AND status = 'completed'
-    """)
+        AND cashier_id = %s
+    """, (cashier_id,))
     today_count = cursor.fetchone()["v"]
 
     cursor.execute("""
         SELECT COALESCE(SUM(total), 0) AS v FROM sales
         WHERE DATE(sale_date) = CURDATE() AND status = 'completed'
-    """)
+        AND cashier_id = %s
+    """, (cashier_id,))
     today_revenue = float(cursor.fetchone()["v"])
 
     cursor.execute("""
@@ -1608,7 +1628,8 @@ def billing_today_stats():
         FROM sale_items si
         JOIN sales s ON si.sale_id = s.id
         WHERE DATE(s.sale_date) = CURDATE() AND s.status = 'completed'
-    """)
+        AND s.cashier_id = %s
+    """, (cashier_id,))
     today_items = int(cursor.fetchone()["v"])
 
     db.close()
@@ -1631,6 +1652,7 @@ def cashier_my_sales():
     cursor = db.cursor(dictionary=True)
 
     date_filter = request.args.get("date", "today")
+    cashier_id = session.get("user_id")
 
     if date_filter == "week":
         date_clause = "AND DATE(s.sale_date) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)"
@@ -1649,7 +1671,7 @@ def cashier_my_sales():
         FROM sales s
         LEFT JOIN customers c ON c.id = s.customer_id
         LEFT JOIN sale_items si ON si.sale_id = s.id
-        WHERE 1=1 {date_clause}
+        WHERE s.cashier_id = {int(cashier_id)} {date_clause}
         GROUP BY s.id ORDER BY s.id DESC
     """)
     my_sales = cursor.fetchall()
@@ -1657,7 +1679,7 @@ def cashier_my_sales():
     stats_date_clause = date_clause.replace("s.sale_date", "sale_date")
     cursor.execute(f"""
         SELECT COUNT(*) AS cnt, COALESCE(SUM(total),0) AS rev
-        FROM sales WHERE status='completed' {stats_date_clause}
+        FROM sales WHERE status='completed' AND cashier_id = {int(cashier_id)} {stats_date_clause}
     """)
     stats = cursor.fetchone()
 
@@ -1679,15 +1701,17 @@ def cashier_customers():
         return redirect(url_for("customers"))
     db = get_db()
     cursor = db.cursor(dictionary=True)
+    cashier_id = session.get("user_id")
+    # Show only customers who have had at least one sale with this cashier
     cursor.execute("""
         SELECT c.id, c.name, c.phone, c.email, c.created_at,
                COUNT(s.id) AS total_orders,
                COALESCE(SUM(s.total), 0) AS total_spent,
                MAX(s.sale_date) AS last_visit
         FROM customers c
-        LEFT JOIN sales s ON s.customer_id = c.id
+        INNER JOIN sales s ON s.customer_id = c.id AND s.cashier_id = %s
         GROUP BY c.id ORDER BY c.id DESC
-    """)
+    """, (cashier_id,))
     customer_list = cursor.fetchall()
     # Convert datetime objects to strings for JSON safety
     for c in customer_list:
@@ -1709,15 +1733,16 @@ def cashier_customer_sales(customer_id):
     """Return all sales for a customer as JSON — used by the refund modal."""
     db = get_db()
     cursor = db.cursor(dictionary=True)
+    cashier_id = session.get("user_id")
     cursor.execute("""
         SELECT s.id, s.invoice_no, s.total, s.sale_date, s.status, s.note,
                COALESCE(SUM(si.qty), 0) AS item_count
         FROM sales s
         LEFT JOIN sale_items si ON si.sale_id = s.id
-        WHERE s.customer_id = %s
+        WHERE s.customer_id = %s AND s.cashier_id = %s
         GROUP BY s.id
         ORDER BY s.id DESC
-    """, (customer_id,))
+    """, (customer_id, cashier_id))
     sales = cursor.fetchall()
     db.close()
     result = []
