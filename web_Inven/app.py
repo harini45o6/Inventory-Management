@@ -1782,5 +1782,256 @@ def cashier_sale_items(sale_id):
     } for r in items])
 
 
+def ensure_finance_settings(db_conn):
+    """Auto-create finance_settings table and seed initial capital if missing."""
+    try:
+        c = db_conn.cursor()
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS finance_settings (
+                id            INT AUTO_INCREMENT PRIMARY KEY,
+                setting_key   VARCHAR(100) NOT NULL UNIQUE,
+                setting_value DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+                updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                              ON UPDATE CURRENT_TIMESTAMP
+            )
+        """)
+        c.execute("""
+            INSERT IGNORE INTO finance_settings (setting_key, setting_value)
+            VALUES ('initial_capital', 0.00)
+        """)
+        db_conn.commit()
+        c.close()
+    except Exception as e:
+        print(f"[FINANCE SETTINGS] {e}")
+
+
+def get_initial_capital(db_conn):
+    """Return the stored initial capital float."""
+    try:
+        ensure_finance_settings(db_conn)
+        c = db_conn.cursor(dictionary=True)
+        c.execute(
+            "SELECT setting_value FROM finance_settings WHERE setting_key='initial_capital'"
+        )
+        row = c.fetchone()
+        c.close()
+        return float(row["setting_value"]) if row else 0.0
+    except Exception:
+        return 0.0
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STEP 3 — Add these two routes to app.py
+# (paste them after the existing /reports route)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/finance")
+@admin_required
+def finance():
+    """Admin Finance overview — P&L, capital tracking, credit payables."""
+    db     = get_db()
+    cursor = db.cursor(dictionary=True)
+
+    # ── Period filter ────────────────────────────────────────────────────────
+    period = request.args.get("period", "month")
+    period_labels = {
+        "today": "Today",
+        "week":  "This Week",
+        "month": "This Month",
+        "all":   "All Time",
+    }
+    period_label = period_labels.get(period, "This Month")
+
+    if period == "today":
+        date_clause  = "DATE(s.sale_date) = CURDATE()"
+        date_clause2 = "DATE(sale_date) = CURDATE()"
+    elif period == "week":
+        date_clause  = "DATE(s.sale_date) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)"
+        date_clause2 = "DATE(sale_date) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)"
+    elif period == "all":
+        date_clause  = "1=1"
+        date_clause2 = "1=1"
+    else:  # month
+        period = "month"
+        date_clause  = "MONTH(s.sale_date)=MONTH(CURDATE()) AND YEAR(s.sale_date)=YEAR(CURDATE())"
+        date_clause2 = "MONTH(sale_date)=MONTH(CURDATE()) AND YEAR(sale_date)=YEAR(CURDATE())"
+
+    # ── Revenue & sales count ────────────────────────────────────────────────
+    cursor.execute(f"""
+        SELECT
+            COUNT(*) AS total_sales,
+            COALESCE(SUM(s.total), 0) AS total_revenue
+        FROM sales s
+        WHERE s.status = 'completed' AND {date_clause}
+    """)
+    rev_row       = cursor.fetchone()
+    total_sales   = int(rev_row["total_sales"])
+    total_revenue = float(rev_row["total_revenue"])
+
+    # ── Refunds in period ────────────────────────────────────────────────────
+    cursor.execute(f"""
+        SELECT COALESCE(SUM(s.total), 0) AS v
+        FROM sales s
+        WHERE s.status = 'refunded' AND {date_clause}
+    """)
+    refund_total = float(cursor.fetchone()["v"])
+
+    # ── COGS — estimate as 90% of retail price × qty sold ───────────────────
+    # Uses sale_items joined with products to get cost at time of sale
+    cursor.execute(f"""
+        SELECT COALESCE(SUM(si.line_total * 0.9), 0) AS cogs
+        FROM sale_items si
+        JOIN sales s ON si.sale_id = s.id
+        WHERE s.status = 'completed' AND {date_clause}
+    """)
+    total_cogs = float(cursor.fetchone()["cogs"])
+    gross_profit = total_revenue - total_cogs
+
+    # ── Supplier credit payables (ALL TIME — obligations don't filter) ───────
+    cursor.execute("""
+        SELECT
+            COALESCE(SUM(total_amount), 0)               AS total_billed,
+            COALESCE(SUM(amount_paid),  0)               AS total_paid,
+            COALESCE(SUM(total_amount - amount_paid), 0) AS total_due,
+            SUM(CASE WHEN status != 'paid' THEN 1 ELSE 0 END) AS pending_invoices
+        FROM supplier_purchases
+    """)
+    credit_row            = cursor.fetchone()
+    credit_total_billed   = float(credit_row["total_billed"])
+    total_paid_suppliers  = float(credit_row["total_paid"])
+    total_pending         = float(credit_row["total_due"])
+    pending_invoices      = int(credit_row["pending_invoices"])
+
+    # ── Inventory value ──────────────────────────────────────────────────────
+    cursor.execute("""
+        SELECT
+            COALESCE(SUM(price * stock), 0) AS inv_value,
+            COUNT(*) AS total_products
+        FROM products
+    """)
+    inv_row         = cursor.fetchone()
+    inventory_value = float(inv_row["inv_value"])
+    total_products  = int(inv_row["total_products"])
+
+    # ── Credit by supplier ───────────────────────────────────────────────────
+    cursor.execute("""
+        SELECT
+            s.supplier_name,
+            COALESCE(SUM(sp.total_amount), 0)               AS total_billed,
+            COALESCE(SUM(sp.amount_paid),  0)               AS total_paid,
+            COALESCE(SUM(sp.total_amount - sp.amount_paid), 0) AS total_due,
+            SUM(CASE WHEN sp.due_date < CURDATE()
+                     AND sp.status != 'paid' THEN 1 ELSE 0 END) AS overdue_count
+        FROM suppliers s
+        LEFT JOIN supplier_purchases sp ON sp.supplier_id = s.id
+        GROUP BY s.id, s.supplier_name
+        HAVING total_billed > 0
+        ORDER BY total_due DESC
+    """)
+    credit_by_supplier = cursor.fetchall()
+    for row in credit_by_supplier:
+        row["total_billed"] = float(row["total_billed"])
+        row["total_paid"]   = float(row["total_paid"])
+        row["total_due"]    = float(row["total_due"])
+
+    # ── Open invoices detail ─────────────────────────────────────────────────
+    cursor.execute("""
+        SELECT
+            sp.id, sp.invoice_ref, sp.total_amount, sp.amount_paid,
+            (sp.total_amount - sp.amount_paid) AS balance,
+            sp.purchase_date, sp.due_date, sp.status, sp.note,
+            s.supplier_name
+        FROM supplier_purchases sp
+        JOIN suppliers s ON s.id = sp.supplier_id
+        WHERE sp.status != 'paid'
+        ORDER BY sp.due_date ASC, sp.purchase_date DESC
+    """)
+    open_invoices = cursor.fetchall()
+    for inv in open_invoices:
+        inv["total_amount"] = float(inv["total_amount"])
+        inv["amount_paid"]  = float(inv["amount_paid"])
+        inv["balance"]      = float(inv["balance"])
+        due = inv.get("due_date")
+        if due:
+            from datetime import date as _date
+            inv["is_overdue"] = (due < _date.today())
+            inv["due_date"]   = due.strftime("%d %b %Y")
+        else:
+            inv["is_overdue"] = False
+            inv["due_date"]   = None
+
+    # ── Monthly revenue trend (last 6 months) ────────────────────────────────
+    cursor.execute("""
+        SELECT
+            DATE_FORMAT(sale_date, '%b %Y') AS month,
+            DATE_FORMAT(sale_date, '%Y-%m') AS sort_key,
+            COUNT(*) AS sales,
+            COALESCE(SUM(total), 0) AS revenue
+        FROM sales
+        WHERE status = 'completed'
+        GROUP BY DATE_FORMAT(sale_date, '%Y-%m')
+        ORDER BY sort_key DESC
+        LIMIT 6
+    """)
+    monthly_trend = list(reversed([
+        {"month": r["month"], "sales": int(r["sales"]), "revenue": float(r["revenue"])}
+        for r in cursor.fetchall()
+    ]))
+
+    # ── Initial capital ──────────────────────────────────────────────────────
+    initial_capital = get_initial_capital(db)
+
+    cursor.close()
+    db.close()
+
+    fin = {
+        "total_sales":            total_sales,
+        "total_revenue":          total_revenue,
+        "refund_total":           refund_total,
+        "total_cogs":             total_cogs,
+        "gross_profit":           gross_profit,
+        "credit_total_billed":    credit_total_billed,
+        "total_paid_to_suppliers":total_paid_suppliers,
+        "total_pending":          total_pending,
+        "pending_invoices":       pending_invoices,
+        "inventory_value":        inventory_value,
+        "total_products":         total_products,
+    }
+
+    return render_template(
+        "finance.html",
+        fin=fin,
+        period=period,
+        period_label=period_label,
+        initial_capital=initial_capital,
+        credit_by_supplier=credit_by_supplier,
+        open_invoices=open_invoices,
+        monthly_trend=monthly_trend,
+        username=session["username"],
+    )
+
+
+@app.route("/finance/set_capital", methods=["POST"])
+@admin_required
+def finance_set_capital():
+    """Update the stored initial capital."""
+    capital = float(request.form.get("capital", 0) or 0)
+    try:
+        db = get_db()
+        ensure_finance_settings(db)
+        cursor = db.cursor()
+        cursor.execute("""
+            INSERT INTO finance_settings (setting_key, setting_value)
+            VALUES ('initial_capital', %s)
+            ON DUPLICATE KEY UPDATE setting_value = %s
+        """, (capital, capital))
+        db.commit()
+        cursor.close()
+        db.close()
+        flash(f"Initial capital updated to ₹{capital:,.2f}", "success")
+    except Exception as e:
+        flash(f"Error: {e}", "error")
+    return redirect(url_for("finance"))
+
 if __name__ == "__main__":
     app.run(debug=True)

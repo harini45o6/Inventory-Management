@@ -1,0 +1,781 @@
+{% extends "base.html" %}
+{% block title %}– Finance{% endblock %}
+
+{% block head %}
+<style>
+/* ── Finance page variables ── */
+:root {
+  --fin-green:  #5ef08a;
+  --fin-red:    #ff5e5e;
+  --fin-yellow: #e8c547;
+  --fin-blue:   #5ea9ff;
+  --fin-teal:   #4fd1c5;
+  --fin-purple: #b794f4;
+}
+
+/* ── Section headers ── */
+.fin-section-title {
+  font-family: var(--font-head);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── KPI grid ── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+}
+.kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 20px 22px;
+  position: relative;
+  overflow: hidden;
+}
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+}
+.kpi-card.green::before  { background: var(--fin-green); }
+.kpi-card.red::before    { background: var(--fin-red); }
+.kpi-card.yellow::before { background: var(--fin-yellow); }
+.kpi-card.blue::before   { background: var(--fin-blue); }
+.kpi-card.teal::before   { background: var(--fin-teal); }
+.kpi-card.purple::before { background: var(--fin-purple); }
+
+.kpi-label {
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.kpi-value {
+  font-family: var(--font-head);
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.kpi-card.green  .kpi-value  { color: var(--fin-green); }
+.kpi-card.red    .kpi-value  { color: var(--fin-red); }
+.kpi-card.yellow .kpi-value  { color: var(--fin-yellow); }
+.kpi-card.blue   .kpi-value  { color: var(--fin-blue); }
+.kpi-card.teal   .kpi-value  { color: var(--fin-teal); }
+.kpi-card.purple .kpi-value  { color: var(--fin-purple); }
+.kpi-sub {
+  font-size: 11px;
+  color: var(--muted);
+}
+.kpi-icon {
+  position: absolute;
+  top: 16px; right: 18px;
+  font-size: 22px;
+  opacity: .15;
+}
+
+/* ── Two-col layout ── */
+.fin-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+@media (max-width: 960px) { .fin-two-col { grid-template-columns: 1fr; } }
+
+/* ── Panel cards ── */
+.fin-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 22px 24px;
+}
+
+/* ── Capital setting bar ── */
+.capital-bar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--fin-yellow);
+  padding: 18px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.capital-bar .cap-info {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.capital-bar .cap-label {
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.capital-bar .cap-amount {
+  font-family: var(--font-head);
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--fin-yellow);
+}
+.capital-edit-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.capital-edit-wrap input {
+  width: 150px;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  outline: none;
+  transition: border-color .15s;
+}
+.capital-edit-wrap input:focus { border-color: var(--fin-yellow); }
+
+/* ── P&L horizontal bar ── */
+.pl-bar-wrap {
+  margin: 20px 0;
+}
+.pl-bar-track {
+  height: 12px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  display: flex;
+}
+.pl-bar-revenue {
+  background: var(--fin-green);
+  height: 100%;
+  transition: width .6s ease;
+}
+.pl-bar-cost {
+  background: var(--fin-red);
+  height: 100%;
+  transition: width .6s ease;
+}
+.pl-bar-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 1px;
+}
+
+/* ── P&L detail table ── */
+.pl-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 12px;
+}
+.pl-table tr {
+  border-bottom: 1px solid rgba(31,36,48,.7);
+}
+.pl-table tr:last-child { border-bottom: none; }
+.pl-table td {
+  padding: 10px 0;
+  color: var(--text);
+  vertical-align: middle;
+}
+.pl-table td:last-child {
+  text-align: right;
+  font-weight: 600;
+}
+.pl-table .pl-section-head td {
+  font-family: var(--font-head);
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding-top: 16px;
+}
+.pl-table .pl-total td {
+  font-weight: 700;
+  color: #fff;
+  font-size: 14px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.pl-table .pl-total.profit td { color: var(--fin-green); }
+.pl-table .pl-total.loss td   { color: var(--fin-red); }
+
+/* ── Capital flow table ── */
+.credit-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.credit-table th {
+  font-family: var(--font-head);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.credit-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid rgba(31,36,48,.6);
+  color: var(--text);
+  vertical-align: middle;
+}
+.credit-table tr:last-child td { border-bottom: none; }
+.credit-table tr:hover { background: rgba(232,197,71,.03); }
+
+/* ── Progress bar (inline) ── */
+.mini-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mini-bar-track {
+  flex: 1;
+  height: 5px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.mini-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+}
+
+/* ── Month filter tabs ── */
+.period-tabs {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.ptab {
+  padding: 6px 16px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 2px;
+  text-decoration: none;
+  transition: all .15s;
+}
+.ptab:hover, .ptab.active {
+  background: rgba(232,197,71,.1);
+  border-color: var(--fin-yellow);
+  color: var(--fin-yellow);
+}
+
+/* ── Capital status pill ── */
+.cap-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: 1px;
+  padding: 4px 12px;
+  border-radius: 2px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.cap-status.surplus  { background: rgba(94,240,138,.1); color: var(--fin-green); }
+.cap-status.deficit  { background: rgba(255,94,94,.1);  color: var(--fin-red); }
+.cap-status.breakeven{ background: rgba(232,197,71,.1); color: var(--fin-yellow); }
+
+/* ── Donut chart (CSS) ── */
+.donut-wrap {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-top: 12px;
+}
+.donut-legend { flex: 1; }
+.donut-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+.donut-dot {
+  width: 10px; height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* ── Empty state ── */
+.fin-empty {
+  text-align: center;
+  padding: 32px 0;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
+/* ── Overdue badge ── */
+.overdue-chip {
+  font-size: 9px;
+  letter-spacing: 1px;
+  padding: 2px 6px;
+  background: rgba(255,94,94,.15);
+  color: var(--fin-red);
+  border-radius: 2px;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- ── Top bar ── -->
+<div class="topbar">
+  <h1>FINANCE <span style="font-size:14px;color:var(--muted);font-weight:400;letter-spacing:1px;margin-left:10px;">OVERVIEW</span></h1>
+  <div class="period-tabs">
+    <a href="?period=today"  class="ptab {% if period=='today'  %}active{% endif %}">Today</a>
+    <a href="?period=week"   class="ptab {% if period=='week'   %}active{% endif %}">This Week</a>
+    <a href="?period=month"  class="ptab {% if period=='month'  %}active{% endif %}">This Month</a>
+    <a href="?period=all"    class="ptab {% if period=='all'    %}active{% endif %}">All Time</a>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- ── Capital Setting Bar ── -->
+  <div class="capital-bar">
+    <div class="cap-info">
+      <div>
+        <div class="cap-label">Initial Capital</div>
+        <div class="cap-amount">₹{{ "%.2f"|format(initial_capital) }}</div>
+      </div>
+      <div>
+        {% set net = fin.total_revenue - fin.total_cogs - fin.total_pending %}
+        {% if net > 0 %}
+          <span class="cap-status surplus">▲ Capital Growing</span>
+        {% elif net < 0 %}
+          <span class="cap-status deficit">▼ Capital at Risk</span>
+        {% else %}
+          <span class="cap-status breakeven">= Breakeven</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="capital-edit-wrap">
+      <form method="POST" action="/finance/set_capital" style="display:flex;gap:8px;align-items:center;">
+        <input type="number" name="capital" min="0" step="0.01"
+               placeholder="Set capital (₹)" value="{{ initial_capital }}"/>
+        <button type="submit" class="btn btn-yellow" style="padding:8px 14px;font-size:11px;">
+          ✎ Update
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── KPI Cards ── -->
+  <div style="margin-bottom:8px;" class="fin-section-title">⊹ KEY PERFORMANCE INDICATORS <span style="font-size:10px;color:var(--muted);">— {{ period_label }}</span></div>
+  <div class="kpi-grid">
+    <div class="kpi-card green">
+      <div class="kpi-icon">💰</div>
+      <div class="kpi-label">Total Revenue</div>
+      <div class="kpi-value">₹{{ "%.0f"|format(fin.total_revenue) }}</div>
+      <div class="kpi-sub">{{ fin.total_sales }} completed sales</div>
+    </div>
+    <div class="kpi-card red">
+      <div class="kpi-icon">🏷</div>
+      <div class="kpi-label">Est. Cost of Goods</div>
+      <div class="kpi-value">₹{{ "%.0f"|format(fin.total_cogs) }}</div>
+      <div class="kpi-sub">Supplier purchase cost (×0.9)</div>
+    </div>
+    <div class="kpi-card yellow">
+      <div class="kpi-icon">📈</div>
+      <div class="kpi-label">Gross Profit</div>
+      <div class="kpi-value">₹{{ "%.0f"|format(fin.gross_profit) }}</div>
+      <div class="kpi-sub">
+        {% if fin.total_revenue > 0 %}
+          {{ "%.1f"|format(fin.gross_profit / fin.total_revenue * 100) }}% margin
+        {% else %}No sales yet{% endif %}
+      </div>
+    </div>
+    <div class="kpi-card purple">
+      <div class="kpi-icon">💳</div>
+      <div class="kpi-label">Credit Payable</div>
+      <div class="kpi-value">₹{{ "%.0f"|format(fin.total_pending) }}</div>
+      <div class="kpi-sub">{{ fin.pending_invoices }} unpaid/partial invoices</div>
+    </div>
+    <div class="kpi-card teal">
+      <div class="kpi-icon">🏦</div>
+      <div class="kpi-label">Net Position</div>
+      {% set net_pos = fin.gross_profit - fin.total_pending %}
+      <div class="kpi-value" style="color:{% if net_pos >= 0 %}var(--fin-teal){% else %}var(--fin-red){% endif %}">
+        ₹{{ "%.0f"|format(net_pos) }}
+      </div>
+      <div class="kpi-sub">After deducting open credit</div>
+    </div>
+    <div class="kpi-card blue">
+      <div class="kpi-icon">📦</div>
+      <div class="kpi-label">Inventory Value</div>
+      <div class="kpi-value">₹{{ "%.0f"|format(fin.inventory_value) }}</div>
+      <div class="kpi-sub">{{ fin.total_products }} SKUs in stock</div>
+    </div>
+  </div>
+
+  <!-- ── P&L + Credit Payable ── -->
+  <div class="fin-two-col">
+
+    <!-- LEFT: Profit & Loss Statement -->
+    <div class="fin-panel">
+      <div class="fin-section-title">◈ PROFIT & LOSS STATEMENT</div>
+
+      <!-- Revenue / Cost bar -->
+      <div class="pl-bar-wrap">
+        {% set bar_total = fin.total_revenue + fin.total_cogs if (fin.total_revenue + fin.total_cogs) > 0 else 1 %}
+        <div class="pl-bar-track">
+          <div class="pl-bar-revenue"
+               style="width:{{ (fin.total_revenue / bar_total * 100)|round }}%"></div>
+          <div class="pl-bar-cost"
+               style="width:{{ (fin.total_cogs / bar_total * 100)|round }}%"></div>
+        </div>
+        <div class="pl-bar-labels">
+          <span style="color:var(--fin-green);">▌ Revenue ₹{{ "%.0f"|format(fin.total_revenue) }}</span>
+          <span style="color:var(--fin-red);">▌ COGS ₹{{ "%.0f"|format(fin.total_cogs) }}</span>
+        </div>
+      </div>
+
+      <table class="pl-table">
+        <tr class="pl-section-head"><td colspan="2">Income</td></tr>
+        <tr>
+          <td>Sales Revenue</td>
+          <td style="color:var(--fin-green);">+ ₹{{ "%.2f"|format(fin.total_revenue) }}</td>
+        </tr>
+        <tr>
+          <td style="font-size:11px;color:var(--muted);">Refunded Sales</td>
+          <td style="color:var(--fin-red);font-size:12px;">− ₹{{ "%.2f"|format(fin.refund_total) }}</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">Net Revenue</td>
+          <td style="color:var(--fin-green);font-weight:700;">₹{{ "%.2f"|format(fin.total_revenue - fin.refund_total) }}</td>
+        </tr>
+
+        <tr class="pl-section-head"><td colspan="2">Expenses</td></tr>
+        <tr>
+          <td>Cost of Goods (est.)</td>
+          <td style="color:var(--fin-red);">− ₹{{ "%.2f"|format(fin.total_cogs) }}</td>
+        </tr>
+        <tr>
+          <td>Amount Paid to Suppliers</td>
+          <td style="color:var(--fin-red);">− ₹{{ "%.2f"|format(fin.total_paid_to_suppliers) }}</td>
+        </tr>
+        <tr>
+          <td>Open Credit (still owed)</td>
+          <td style="color:var(--fin-purple);">₹{{ "%.2f"|format(fin.total_pending) }}</td>
+        </tr>
+
+        <tr class="pl-section-head"><td colspan="2">Result</td></tr>
+        <tr>
+          <td>Gross Profit</td>
+          <td style="color:var(--fin-yellow);">₹{{ "%.2f"|format(fin.gross_profit) }}</td>
+        </tr>
+        {% set net_final = fin.gross_profit - fin.total_pending %}
+        <tr class="pl-total {% if net_final >= 0 %}profit{% else %}loss{% endif %}">
+          <td>Net Profit (after credit)</td>
+          <td>{% if net_final >= 0 %}▲{% else %}▼{% endif %} ₹{{ "%.2f"|format(net_final|abs) }}</td>
+        </tr>
+
+        <!-- Capital ROI -->
+        {% if initial_capital > 0 %}
+        <tr>
+          <td style="font-size:11px;color:var(--muted);">Return on Capital</td>
+          <td style="font-size:12px;color:var(--fin-teal);">
+            {{ "%.1f"|format(net_final / initial_capital * 100) }}%
+          </td>
+        </tr>
+        {% endif %}
+      </table>
+    </div>
+
+    <!-- RIGHT: Credit / Payables -->
+    <div class="fin-panel">
+      <div class="fin-section-title">💳 CREDIT PURCHASE PAYABLES</div>
+
+      <!-- Summary strip -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:18px;">
+        <div style="background:var(--bg);padding:12px;border:1px solid var(--border);">
+          <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Total Billed</div>
+          <div style="font-family:var(--font-head);font-size:20px;font-weight:800;color:var(--text);">₹{{ "%.0f"|format(fin.credit_total_billed) }}</div>
+        </div>
+        <div style="background:var(--bg);padding:12px;border:1px solid var(--border);">
+          <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Paid</div>
+          <div style="font-family:var(--font-head);font-size:20px;font-weight:800;color:var(--fin-green);">₹{{ "%.0f"|format(fin.total_paid_to_suppliers) }}</div>
+        </div>
+        <div style="background:var(--bg);padding:12px;border:1px solid var(--border);border-top-color:var(--fin-red);">
+          <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Still Owed</div>
+          <div style="font-family:var(--font-head);font-size:20px;font-weight:800;color:var(--fin-red);">₹{{ "%.0f"|format(fin.total_pending) }}</div>
+        </div>
+      </div>
+
+      <!-- Per-supplier credit table -->
+      <div class="table-wrap" style="max-height:320px;overflow-y:auto;">
+        <table class="credit-table">
+          <thead>
+            <tr>
+              <th>Supplier</th>
+              <th>Billed</th>
+              <th>Paid</th>
+              <th>Balance</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for sup in credit_by_supplier %}
+            <tr>
+              <td>
+                <div style="font-size:12px;">{{ sup.supplier_name }}</div>
+                {% if sup.overdue_count and sup.overdue_count > 0 %}
+                <span class="overdue-chip">⚠ {{ sup.overdue_count }} overdue</span>
+                {% endif %}
+              </td>
+              <td>₹{{ "%.0f"|format(sup.total_billed) }}</td>
+              <td style="color:var(--fin-green);">₹{{ "%.0f"|format(sup.total_paid) }}</td>
+              <td style="color:{% if sup.total_due > 0 %}var(--fin-red){% else %}var(--fin-green){% endif %};font-weight:600;">
+                ₹{{ "%.0f"|format(sup.total_due) }}
+              </td>
+              <td>
+                {% if sup.total_due == 0 %}
+                  <span class="badge badge-in">✓ Clear</span>
+                {% elif sup.total_paid == 0 %}
+                  <span class="badge badge-out">Unpaid</span>
+                {% else %}
+                  <span class="badge badge-price">Partial</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="5" class="fin-empty">No credit purchases recorded.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Overall progress bar -->
+      {% if fin.credit_total_billed > 0 %}
+      <div style="margin-top:16px;">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:6px;">
+          <span>Payment Progress</span>
+          <span>{{ "%.0f"|format(fin.total_paid_to_suppliers / fin.credit_total_billed * 100) }}% paid</span>
+        </div>
+        <div class="mini-bar-track" style="height:8px;">
+          <div class="mini-bar-fill" style="width:{{ "%.0f"|format(fin.total_paid_to_suppliers / fin.credit_total_billed * 100) }}%;background:var(--fin-green);"></div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── Capital Deployment & Monthly Revenue ── -->
+  <div class="fin-two-col">
+
+    <!-- Capital Deployment Breakdown -->
+    <div class="fin-panel">
+      <div class="fin-section-title">◎ CAPITAL DEPLOYMENT</div>
+      {% set cap = initial_capital if initial_capital > 0 else 1 %}
+      {% set deployed_stock = fin.inventory_value %}
+      {% set deployed_paid  = fin.total_paid_to_suppliers %}
+      {% set recovered      = fin.total_revenue %}
+      {% set free_cash      = initial_capital + fin.gross_profit - fin.total_paid_to_suppliers - fin.inventory_value %}
+
+      <table class="pl-table">
+        <tr class="pl-section-head"><td colspan="3">Allocation</td></tr>
+        <tr>
+          <td>Initial Capital</td>
+          <td style="color:var(--fin-yellow);font-weight:700;">₹{{ "%.2f"|format(initial_capital) }}</td>
+          <td style="color:var(--muted);font-size:11px;">100%</td>
+        </tr>
+        <tr>
+          <td>Locked in Inventory (current value)</td>
+          <td style="color:var(--fin-blue);">₹{{ "%.2f"|format(deployed_stock) }}</td>
+          <td style="color:var(--muted);font-size:11px;">{{ "%.1f"|format(deployed_stock/cap*100) }}%</td>
+        </tr>
+        <tr>
+          <td>Paid to Suppliers (cash out)</td>
+          <td style="color:var(--fin-red);">₹{{ "%.2f"|format(deployed_paid) }}</td>
+          <td style="color:var(--muted);font-size:11px;">{{ "%.1f"|format(deployed_paid/cap*100) }}%</td>
+        </tr>
+        <tr>
+          <td>Still Owed to Suppliers</td>
+          <td style="color:var(--fin-purple);">₹{{ "%.2f"|format(fin.total_pending) }}</td>
+          <td style="color:var(--muted);font-size:11px;">Credit</td>
+        </tr>
+
+        <tr class="pl-section-head"><td colspan="3">Returns</td></tr>
+        <tr>
+          <td>Revenue Recovered</td>
+          <td style="color:var(--fin-green);">₹{{ "%.2f"|format(recovered) }}</td>
+          <td style="color:var(--muted);font-size:11px;">{{ "%.1f"|format(recovered/cap*100) }}%</td>
+        </tr>
+        <tr>
+          <td>Gross Profit Earned</td>
+          <td style="color:var(--fin-yellow);">₹{{ "%.2f"|format(fin.gross_profit) }}</td>
+          <td style="color:var(--muted);font-size:11px;">{{ "%.1f"|format(fin.gross_profit/cap*100) }}% ROI</td>
+        </tr>
+
+        <tr class="pl-section-head"><td colspan="3">Free Cash Est.</td></tr>
+        {% set free = initial_capital + fin.gross_profit - fin.total_paid_to_suppliers %}
+        <tr class="pl-total {% if free >= 0 %}profit{% else %}loss{% endif %}">
+          <td colspan="2">Estimated Free Cash</td>
+          <td style="text-align:right;">₹{{ "%.2f"|format(free) }}</td>
+        </tr>
+      </table>
+
+      <!-- Visual bars -->
+      <div style="margin-top:16px;">
+        {% for item in [
+          ('Inventory', deployed_stock, cap, '#5ea9ff'),
+          ('Paid Out',  deployed_paid,  cap, '#ff5e5e'),
+          ('Revenue',   recovered,      cap, '#5ef08a'),
+        ] %}
+        <div style="margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:4px;">
+            <span>{{ item[0] }}</span>
+            <span>₹{{ "%.0f"|format(item[1]) }}</span>
+          </div>
+          <div class="mini-bar-track">
+            <div class="mini-bar-fill"
+                 style="width:{{ [item[1]/item[2]*100,100]|min|round }}%;background:{{ item[3] }};"></div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Monthly Revenue Trend -->
+    <div class="fin-panel">
+      <div class="fin-section-title">▦ MONTHLY REVENUE TREND</div>
+      {% if monthly_trend %}
+        {% set max_rev = monthly_trend|map(attribute='revenue')|max %}
+        {% for m in monthly_trend %}
+        <div class="bar-row" style="display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:11px;">
+          <div style="width:72px;color:var(--muted);text-align:right;flex-shrink:0;font-size:10px;">
+            {{ m.month }}
+          </div>
+          <div style="flex:1;background:var(--border);height:10px;border-radius:2px;overflow:hidden;">
+            <div style="height:100%;background:var(--fin-green);width:{{ (m.revenue / max_rev * 100)|round }}%;transition:width .5s;"></div>
+          </div>
+          <div style="width:80px;font-size:11px;color:var(--text);">₹{{ "%.0f"|format(m.revenue) }}</div>
+          <div style="width:36px;font-size:10px;color:var(--muted);">{{ m.sales }}tx</div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="fin-empty">No monthly data available yet.</div>
+      {% endif %}
+
+      <!-- Quick stats -->
+      {% if monthly_trend|length > 1 %}
+      {% set last_m = monthly_trend[-1] %}
+      {% set prev_m = monthly_trend[-2] %}
+      {% set growth = ((last_m.revenue - prev_m.revenue) / prev_m.revenue * 100) if prev_m.revenue > 0 else 0 %}
+      <div style="margin-top:18px;padding:12px;background:var(--bg);border:1px solid var(--border);">
+        <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Month-over-Month</div>
+        <div style="display:flex;gap:20px;flex-wrap:wrap;">
+          <div>
+            <div style="font-size:10px;color:var(--muted);">Last Month</div>
+            <div style="font-family:var(--font-head);font-size:20px;font-weight:800;color:var(--text);">₹{{ "%.0f"|format(prev_m.revenue) }}</div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--muted);">This Month</div>
+            <div style="font-family:var(--font-head);font-size:20px;font-weight:800;color:var(--fin-yellow);">₹{{ "%.0f"|format(last_m.revenue) }}</div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--muted);">Growth</div>
+            <div style="font-family:var(--font-head);font-size:20px;font-weight:800;color:{% if growth >= 0 %}var(--fin-green){% else %}var(--fin-red){% endif %};">
+              {% if growth >= 0 %}▲{% else %}▼{% endif %}{{ "%.1f"|format(growth|abs) }}%
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── All Open Credit Invoices (detail) ── -->
+  <div class="fin-panel" style="margin-bottom:24px;">
+    <div class="fin-section-title">📋 OPEN CREDIT INVOICES — PAYMENT SCHEDULE</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Invoice Ref</th>
+            <th>Supplier</th>
+            <th>Purchase Date</th>
+            <th>Due Date</th>
+            <th>Total Billed</th>
+            <th>Paid</th>
+            <th>Balance Due</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for inv in open_invoices %}
+          <tr>
+            <td><span class="sku-tag">{{ inv.invoice_ref or '—' }}</span></td>
+            <td style="font-size:12px;">{{ inv.supplier_name }}</td>
+            <td style="font-size:11px;color:var(--muted);">
+              {{ inv.purchase_date.strftime('%d %b %Y') if inv.purchase_date else '—' }}
+            </td>
+            <td style="font-size:11px;">
+              {% if inv.due_date %}
+                {% if inv.is_overdue %}
+                  <span style="color:var(--fin-red);">⚠ {{ inv.due_date }}</span>
+                {% else %}
+                  {{ inv.due_date }}
+                {% endif %}
+              {% else %}—{% endif %}
+            </td>
+            <td>₹{{ "%.2f"|format(inv.total_amount) }}</td>
+            <td style="color:var(--fin-green);">₹{{ "%.2f"|format(inv.amount_paid) }}</td>
+            <td style="font-weight:700;color:{% if inv.balance > 0 %}var(--fin-red){% else %}var(--fin-green){% endif %};">
+              ₹{{ "%.2f"|format(inv.balance) }}
+            </td>
+            <td>
+              {% if inv.status == 'paid' %}
+                <span class="badge badge-in">✓ Paid</span>
+              {% elif inv.status == 'partial' %}
+                <span class="badge badge-price">Partial</span>
+              {% else %}
+                <span class="badge badge-out">Unpaid</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="8" style="text-align:center;color:var(--muted);padding:40px;">
+              No open credit invoices. All payments are settled.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
