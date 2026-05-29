@@ -1969,7 +1969,7 @@ def finance():
             COALESCE(SUM(total), 0) AS revenue
         FROM sales
         WHERE status = 'completed'
-        GROUP BY DATE_FORMAT(sale_date, '%Y-%m')
+        GROUP BY DATE_FORMAT(sale_date, '%Y-%m'), DATE_FORMAT(sale_date, '%b %Y')
         ORDER BY sort_key DESC
         LIMIT 6
     """)
