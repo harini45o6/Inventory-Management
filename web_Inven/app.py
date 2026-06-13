@@ -667,11 +667,27 @@ def suppliers():
     cursor = db.cursor(dictionary=True)
 
     cursor.execute("""
-    SELECT id, supplier_name, contact, email,
-           CAST(COALESCE(supplied_products, 0) AS UNSIGNED) AS supplied_products,
-           created_at
-    FROM suppliers
-    ORDER BY id DESC
+    SELECT
+        s.id,
+        s.supplier_name,
+        s.contact,
+        s.email,
+        CAST(COALESCE(s.supplied_products, 0) AS UNSIGNED) AS supplied_products,
+        s.created_at,
+        DATE_FORMAT(s.created_at, '%%d %%b %%Y')               AS created_at_str,
+        COALESCE(SUM(p.stock), 0)                               AS total_units,
+        COALESCE(ROUND(SUM(p.price * p.stock), 2), 0)           AS stock_value,
+        COALESCE(SUM(sp.total_amount), 0)                       AS total_billed,
+        COALESCE(SUM(sp.amount_paid),  0)                       AS total_paid,
+        COALESCE(SUM(sp.total_amount - sp.amount_paid), 0)      AS total_due,
+        SUM(CASE WHEN sp.due_date < CURDATE()
+                 AND sp.status != 'paid' THEN 1 ELSE 0 END)     AS overdue_count
+    FROM suppliers s
+    LEFT JOIN products p            ON p.supplier_id = s.id
+    LEFT JOIN supplier_purchases sp ON sp.supplier_id = s.id
+    GROUP BY s.id, s.supplier_name, s.contact, s.email,
+             s.supplied_products, s.created_at
+    ORDER BY s.id DESC
 """)
 
     supplier_list = cursor.fetchall()
@@ -714,89 +730,183 @@ def add_supplier():
     return redirect(url_for("suppliers"))
 
 # ── SUPPLIER PRODUCTS ─────────────────────────────────────────────────────────
-@app.route("/supplier/<int:supplier_id>/products")
+# ─────────────────────────────────────────────────────────────────────────────
+# ADD THIS ROUTE to app.py
+# Handles the "Existing Products" tab purchase submission
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/supplier/<int:supplier_id>/purchase/existing', methods=['POST'])
 @login_required
-def supplier_products(supplier_id):
-    db = get_db()
-    cursor = db.cursor(dictionary=True)
+def supplier_purchase_existing(supplier_id):
+    """
+    Receives JSON: {
+      items: [{sku, qty, cost}],
+      invoice_ref, purchase_date, due_date,
+      amount_paid, total_amount, note
+    }
+    For each item: updates products.stock += qty
+    Then records one supplier_purchases row for the whole order.
+    """
+    import json
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'error': 'No data received'}), 400
 
-    # Correct
-    cursor.execute("SELECT id, supplier_name FROM suppliers WHERE id = %s", (supplier_id,))
-    supplier = cursor.fetchone()
+    items        = data.get('items', [])
+    invoice_ref  = data.get('invoice_ref', '')
+    purchase_date= data.get('purchase_date') or datetime.now().strftime('%Y-%m-%d')
+    due_date     = data.get('due_date') or None
+    amount_paid  = float(data.get('amount_paid', 0))
+    total_amount = float(data.get('total_amount', 0))
+    note         = data.get('note', '')
 
-    if not supplier:
-        return jsonify({"error": "Supplier not found"}), 404
-
-    cursor.execute("""
-        SELECT sku, name, category, price, stock
-        FROM products
-        WHERE supplier_id = %s
-        ORDER BY name
-    """, (supplier_id,))
-    items = cursor.fetchall()
-    db.close()
-
-    return jsonify({
-        "supplier": supplier,
-        "products": [{
-            "sku": r["sku"],
-            "name": r["name"],
-            "category": r["category"],
-            "price": float(r["price"]),
-            "stock": int(r["stock"])
-        } for r in items]
-    })
-
-
-@app.route("/add_product_to_supplier", methods=["POST"])
-@login_required
-def add_product_to_supplier():
-    supplier_id = request.form.get("supplier_id")
-    sku         = request.form.get("sku", "").strip()
-    name        = request.form.get("name", "").strip()
-    category    = request.form.get("category", "").strip()
-    price       = float(request.form.get("price", 0))
-    stock       = int(request.form.get("stock", 0))
+    if not items:
+        return jsonify({'success': False, 'error': 'No items provided'}), 400
 
     try:
-        db = get_db()
-        cursor = db.cursor(dictionary=True)
+        conn = get_db()
+        cursor = conn.cursor()
 
-        # Auto-generate SKU if empty
-        if not sku:
+        # 1. Update stock for each item
+        for item in items:
+            sku = item['sku']
+            qty = int(item['qty'])
+            cost = float(item['cost'])
+
+            # Get current stock for activity log
+            cursor.execute("SELECT stock, name FROM products WHERE sku=%s", (sku,))
+            row = cursor.fetchone()
+            if not row:
+                continue
+            stock_before = row[0]
+            name = row[1]
+            stock_after  = stock_before + qty
+
+            cursor.execute(
+                "UPDATE products SET stock = stock + %s WHERE sku = %s",
+                (qty, sku)
+            )
+
+            # Activity log
             cursor.execute("""
-                SELECT sku FROM products
-                ORDER BY CAST(SUBSTRING(sku, 4) AS UNSIGNED) DESC
-                LIMIT 1
-            """)
-            last = cursor.fetchone()
-            sku = f"PRD{(int(last['sku'].replace('PRD','')) + 1):03d}" if last else "PRD001"
+                INSERT INTO activity_log (sku, name, action, qty_change, stock_before, stock_after, note)
+                VALUES (%s, %s, 'stock_in', %s, %s, %s, %s)
+            """, (sku, name, qty, stock_before, stock_after, f'Supplier purchase: {invoice_ref or supplier_id}'))
 
+        # 2. Record credit purchase
+        balance = total_amount - amount_paid
+        if balance < 0: balance = 0
+        status = 'paid' if balance == 0 else ('partial' if amount_paid > 0 else 'unpaid')
+
+        cursor.execute("""
+            INSERT INTO supplier_purchases
+              (supplier_id, invoice_ref, total_amount, amount_paid, purchase_date, due_date, note, status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (supplier_id, invoice_ref, total_amount, amount_paid,
+              purchase_date, due_date, note, status))
+
+        purchase_id = cursor.lastrowid
+
+        # 3. If partial payment, also record in supplier_payments
+        if amount_paid > 0:
+            cursor.execute("""
+                INSERT INTO supplier_payments (purchase_id, supplier_id, amount, note)
+                VALUES (%s, %s, %s, %s)
+            """, (purchase_id, supplier_id, amount_paid, note))
+
+        conn.commit()
+        return jsonify({'success': True, 'purchase_id': purchase_id})
+
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ALSO UPDATE your existing add_product_to_supplier route to handle
+# supplier_price vs price (10% markup):
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/add_product_to_supplier', methods=['POST'])
+@login_required
+def add_product_to_supplier():
+    supplier_id    = request.form.get('supplier_id')
+    sku            = request.form.get('sku', '').strip() or generate_sku()
+    name           = request.form.get('name')
+    category       = request.form.get('category')
+    supplier_price = float(request.form.get('supplier_price') or 0)  # cost (lower)
+    retail_price   = float(request.form.get('price') or 0)           # products table (higher)
+    stock          = int(request.form.get('stock') or 0)
+    invoice_ref    = request.form.get('invoice_ref', '')
+    purchase_date  = request.form.get('purchase_date') or datetime.now().strftime('%Y-%m-%d')
+    due_date       = request.form.get('due_date') or None
+    amount_paid    = float(request.form.get('amount_paid') or 0)
+    note           = request.form.get('note', '')
+
+    # Fallback: if retail not provided, auto +10%
+    if retail_price <= 0 and supplier_price > 0:
+        retail_price = round(supplier_price * 1.10, 2)
+    # total cost = supplier_price × qty
+    total_amount = round(supplier_price * stock, 2)
+
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+
+        # Insert product with RETAIL price
         cursor.execute("""
             INSERT INTO products (sku, name, category, price, stock, supplier_id)
             VALUES (%s, %s, %s, %s, %s, %s)
-        """, (sku, name, category, price, stock, supplier_id))
+        """, (sku, name, category, retail_price, stock, supplier_id or None))
 
-        # Update supplied_products count on supplier
+        # Activity log
         cursor.execute("""
-            UPDATE suppliers
-            SET supplied_products = (
+            INSERT INTO activity_log (sku, name, action, qty_change, stock_before, stock_after, note)
+            VALUES (%s, %s, 'add', %s, 0, %s, %s)
+        """, (sku, name, stock, stock, f'New product via supplier purchase'))
+
+        # Record supplier purchase (at cost price)
+        if total_amount > 0:
+            balance = total_amount - amount_paid
+            if balance < 0: balance = 0
+            status = 'paid' if balance == 0 else ('partial' if amount_paid > 0 else 'unpaid')
+            cursor.execute("""
+                INSERT INTO supplier_purchases
+                  (supplier_id, invoice_ref, total_amount, amount_paid, purchase_date, due_date, note, status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (supplier_id, invoice_ref, total_amount, amount_paid,
+                  purchase_date, due_date, note, status))
+
+            if amount_paid > 0:
+                purchase_id = cursor.lastrowid
+                cursor.execute("""
+                    INSERT INTO supplier_payments (purchase_id, supplier_id, amount, note)
+                    VALUES (%s, %s, %s, %s)
+                """, (purchase_id, supplier_id, amount_paid, note))
+
+        # Update supplier supplied_products count
+        cursor.execute("""
+            UPDATE suppliers SET supplied_products = (
                 SELECT COUNT(*) FROM products WHERE supplier_id = %s
-            )
-            WHERE id = %s
+            ) WHERE id = %s
         """, (supplier_id, supplier_id))
 
-        db.commit()
-        db.close()
-
-        log_activity(sku, name, "Add Item", stock, 0, stock,
-                     f"Added via supplier #{supplier_id} by {session['username']}")
-        flash(f"'{name}' ({sku}) added to supplier successfully.", "success")
-
+        conn.commit()
+        flash('Product added successfully!', 'success')
     except Exception as e:
-        flash(f"Error: {e}", "error")
+        conn.rollback()
+        flash(f'Error: {e}', 'error')
+    finally:
+        cursor.close()
+        conn.close()
 
-    return redirect(url_for("suppliers"))
+    return redirect(url_for('suppliers'))
+
+
+
 # ── CUSTOMERS ─────────────────────────────────────────────────────────────────
 
 @app.route("/customers")
