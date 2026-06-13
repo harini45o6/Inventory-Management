@@ -4,7 +4,10 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>ShopStock – Login</title>
+  <!-- Favicon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='16' fill='%23e8c547'/><text y='.9em' font-size='70' x='12'>S</text></svg>">
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.11.0/dist/tabler-icons.min.css"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -21,10 +24,21 @@
       min-height: 100vh;
       display: grid;
       place-items: center;
+      /* Subtle grid pattern */
       background-image:
-        linear-gradient(rgba(232,197,71,.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(232,197,71,.03) 1px, transparent 1px);
+        linear-gradient(rgba(232,197,71,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(232,197,71,.025) 1px, transparent 1px);
       background-size: 40px 40px;
+    }
+
+    /* Version badge */
+    .version-tag {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 1px;
     }
 
     .login-card {
@@ -32,7 +46,9 @@
       border: 1px solid var(--border);
       border-top: 3px solid var(--accent);
       width: 400px;
+      max-width: 95vw;
       padding: 44px 40px;
+      border-radius: 4px;
       animation: rise .4s ease;
     }
     @keyframes rise { from { opacity:0; transform: translateY(20px); } to { opacity:1; } }
@@ -50,14 +66,14 @@
       letter-spacing: 3px;
       text-transform: uppercase;
       color: var(--muted);
-      margin-bottom: 28px;
+      margin-bottom: 32px;
     }
 
     /* ── Role toggle ── */
     .role-toggle {
       display: flex;
       border: 1px solid var(--border);
-      border-radius: 2px;
+      border-radius: 4px;
       overflow: hidden;
       margin-bottom: 28px;
     }
@@ -65,7 +81,7 @@
     .role-toggle label {
       flex: 1;
       text-align: center;
-      padding: 10px;
+      padding: 11px;
       font-size: 11px;
       letter-spacing: 2px;
       text-transform: uppercase;
@@ -74,18 +90,20 @@
       transition: all .18s;
       border-right: 1px solid var(--border);
       user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
     }
     .role-toggle label:last-of-type { border-right: none; }
     .role-toggle input[type="radio"]:checked + label {
       background: rgba(232,197,71,.1);
       color: var(--accent);
-      border-bottom: 2px solid var(--accent);
+      font-weight: 600;
     }
-    /* cashier tab accent */
     #role-cashier:checked + label {
       background: rgba(79,209,197,.1);
       color: var(--accent2);
-      border-bottom-color: var(--accent2);
     }
 
     .form-label {
@@ -96,22 +114,38 @@
       color: var(--muted);
       margin-bottom: 8px;
     }
+    .input-wrap {
+      position: relative;
+      margin-bottom: 20px;
+    }
+    .input-wrap .input-icon {
+      position: absolute;
+      left: 12px; top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      font-size: 16px;
+      pointer-events: none;
+    }
     input[type=text], input[type=password] {
       width: 100%;
-      padding: 12px 14px;
+      padding: 12px 14px 12px 38px;
       background: var(--bg);
       border: 1px solid var(--border);
+      border-radius: 4px;
       color: var(--text);
       font-family: var(--font-mono);
       font-size: 14px;
       outline: none;
-      margin-bottom: 20px;
-      transition: border-color .15s;
+      transition: border-color .15s, box-shadow .15s;
     }
-    input:focus { border-color: var(--accent); }
-
-    /* cashier mode input focus */
-    body.cashier-mode input:focus { border-color: var(--accent2); }
+    input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(232,197,71,.08);
+    }
+    body.cashier-mode input:focus {
+      border-color: var(--accent2);
+      box-shadow: 0 0 0 3px rgba(79,209,197,.08);
+    }
 
     .btn-login {
       width: 100%;
@@ -125,43 +159,45 @@
       text-transform: uppercase;
       border: none;
       cursor: pointer;
+      border-radius: 4px;
       transition: opacity .15s, background .2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
     }
     .btn-login:hover { opacity: .88; }
-    body.cashier-mode .btn-login {
-      background: var(--accent2);
-    }
+    .btn-login:active { transform: scale(.99); }
+    body.cashier-mode .btn-login { background: var(--accent2); }
 
     .role-hint {
-      margin-top: 12px;
+      margin-top: 14px;
       padding: 10px 14px;
       font-size: 11px;
       letter-spacing: .5px;
       border-left: 3px solid var(--accent);
-      background: rgba(232,197,71,.06);
+      background: rgba(232,197,71,.05);
       color: var(--muted);
+      border-radius: 0 4px 4px 0;
       transition: all .2s;
     }
     body.cashier-mode .role-hint {
       border-left-color: var(--accent2);
-      background: rgba(79,209,197,.06);
+      background: rgba(79,209,197,.05);
     }
 
     .error-msg {
-      background: rgba(255,94,94,.1);
+      background: rgba(255,94,94,.08);
       border-left: 3px solid var(--red);
       color: var(--red);
       padding: 10px 14px;
       font-size: 12px;
       margin-bottom: 20px;
       letter-spacing: .5px;
-    }
-    .hint {
-      margin-top: 24px;
-      font-size: 10px;
-      color: var(--muted);
-      text-align: center;
-      letter-spacing: 1px;
+      border-radius: 0 4px 4px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
   </style>
 </head>
@@ -173,40 +209,54 @@
     <!-- Role selector -->
     <div class="role-toggle">
       <input type="radio" name="role-ui" id="role-admin" value="admin" checked>
-      <label for="role-admin">◈ Admin</label>
-
+      <label for="role-admin">
+        <i class="ti ti-shield-check"></i> Admin
+      </label>
       <input type="radio" name="role-ui" id="role-cashier" value="cashier">
-      <label for="role-cashier">⊡ Cashier</label>
+      <label for="role-cashier">
+        <i class="ti ti-receipt"></i> Cashier
+      </label>
     </div>
 
     {% if error %}
-      <div class="error-msg">⚠ {{ error }}</div>
+      <div class="error-msg">
+        <i class="ti ti-alert-circle"></i> {{ error }}
+      </div>
     {% endif %}
 
     <form method="POST" action="{{ url_for('login') }}">
       <input type="hidden" name="role" id="role-input" value="admin">
 
       <label class="form-label" for="username">Username</label>
-      <input type="text" id="username" name="username" autocomplete="username" autofocus/>
+      <div class="input-wrap">
+        <i class="ti ti-user input-icon"></i>
+        <input type="text" id="username" name="username" autocomplete="username" autofocus/>
+      </div>
 
       <label class="form-label" for="password">Password</label>
-      <input type="password" id="password" name="password" autocomplete="current-password"/>
+      <div class="input-wrap">
+        <i class="ti ti-lock input-icon"></i>
+        <input type="password" id="password" name="password" autocomplete="current-password"/>
+      </div>
 
-      <button type="submit" class="btn-login" id="login-btn">Sign In</button>
+      <button type="submit" class="btn-login" id="login-btn">
+        <i class="ti ti-login"></i>
+        <span id="login-btn-text">Sign In</span>
+      </button>
     </form>
 
     <div class="role-hint" id="role-hint">
       Admin access — full inventory management.
     </div>
-
-    <div class="hint">SHOPSTOCK v4.0 &nbsp;·&nbsp; Secure Access</div>
   </div>
 
+  <div class="version-tag">SHOPSTOCK v4.0 · Secure Access</div>
+
   <script>
-    const radios = document.querySelectorAll('input[name="role-ui"]');
+    const radios   = document.querySelectorAll('input[name="role-ui"]');
     const roleInput = document.getElementById('role-input');
-    const hint = document.getElementById('role-hint');
-    const loginBtn = document.getElementById('login-btn');
+    const hint      = document.getElementById('role-hint');
+    const btnText   = document.getElementById('login-btn-text');
 
     radios.forEach(radio => {
       radio.addEventListener('change', () => {
@@ -214,21 +264,27 @@
         roleInput.value = val;
         if (val === 'cashier') {
           document.body.classList.add('cashier-mode');
-          hint.textContent = 'Cashier access — sales & POS only.';
-          loginBtn.textContent = 'Sign In as Cashier';
+          hint.textContent = 'Cashier access — sales & billing only.';
+          btnText.textContent = 'Sign In as Cashier';
         } else {
           document.body.classList.remove('cashier-mode');
           hint.textContent = 'Admin access — full inventory management.';
-          loginBtn.textContent = 'Sign In';
+          btnText.textContent = 'Sign In';
         }
       });
     });
 
-    // Pre-select tab based on server-side error context
     {% if selected_role == 'cashier' %}
       document.getElementById('role-cashier').checked = true;
       document.getElementById('role-cashier').dispatchEvent(new Event('change'));
     {% endif %}
+
+    // Disable submit on click to prevent double-submit
+    document.querySelector('form').addEventListener('submit', function() {
+      const btn = document.getElementById('login-btn');
+      btn.disabled = true;
+      btn.style.opacity = '0.6';
+    });
   </script>
 </body>
 </html>

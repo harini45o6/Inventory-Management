@@ -2,6 +2,7 @@
 {% block title %}– Billing Counter{% endblock %}
 
 {% block head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.11.0/dist/tabler-icons.min.css"/>
 <style>
 .main { background: #080a0d; }
 
@@ -288,8 +289,13 @@
 
 /* ── BILL FOOTER ── */
 .bill-footer {
-  border-top: 1px solid var(--pos-border);
+  border-top: 2px solid var(--pos-accent);
   padding: 12px 20px; background: var(--pos-panel); flex-shrink: 0;
+  /* Sticky — always visible even when cart items scroll */
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  box-shadow: 0 -8px 24px rgba(0,0,0,.4);
 }
 .bill-totals { margin-bottom: 10px; }
 .bill-row {
@@ -329,6 +335,7 @@
 #change-display { font-weight: 700; font-size: 16px; color: var(--pos-green); }
 
 /* Checkout btn */
+/* Sticky checkout footer improved in bill-footer below */
 .btn-checkout {
   width: 100%; padding: 15px; background: var(--pos-accent); color: #0d0f12;
   border: none; font-family: var(--font-head); font-size: 22px;
@@ -573,11 +580,12 @@
       </div>
 
       <button class="btn-checkout" id="btn-checkout" onclick="initiateCheckout()" disabled>
-        ⊡ CHECKOUT
+        <i class="ti ti-shopping-cart-check" style="font-size:20px;"></i> CHECKOUT
       </button>
-      <div style="text-align:center;font-size:10px;color:var(--pos-muted);letter-spacing:1px;">
-        <kbd style="background:var(--pos-border);padding:1px 5px;border-radius:2px;font-size:10px;">F2</kbd> checkout &nbsp;·&nbsp;
-        <kbd style="background:var(--pos-border);padding:1px 5px;border-radius:2px;font-size:10px;">Esc</kbd> clear
+      <div style="text-align:center;font-size:10px;color:var(--pos-muted);letter-spacing:1px;margin-top:4px;">
+        <kbd style="background:var(--pos-border);padding:2px 7px;border-radius:3px;font-size:10px;font-family:var(--font-mono);">F2</kbd> checkout &nbsp;&nbsp;
+        <kbd style="background:var(--pos-border);padding:2px 7px;border-radius:3px;font-size:10px;font-family:var(--font-mono);">Esc</kbd> clear bill &nbsp;&nbsp;
+        <kbd style="background:var(--pos-border);padding:2px 7px;border-radius:3px;font-size:10px;font-family:var(--font-mono);">↑↓</kbd> navigate search
       </div>
     </div>
   </div>

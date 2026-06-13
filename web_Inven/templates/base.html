@@ -4,7 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>ShopStock {% block title %}{% endblock %}</title>
+  <!-- Favicon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='16' fill='%23e8c547'/><text y='.9em' font-size='70' x='12'>S</text></svg>">
+  <!-- Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <!-- Tabler Icons — consistent outlined icon set replaces all mixed Unicode glyphs -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.11.0/dist/tabler-icons.min.css"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -40,7 +45,6 @@
       border-right: 1px solid var(--border);
       display: flex;
       flex-direction: column;
-      padding: 0;
       position: fixed;
       top: 0; left: 0; bottom: 0;
       z-index: 100;
@@ -63,40 +67,105 @@
       letter-spacing: 2px;
       margin-top: 2px;
     }
+
+    /* Nav group labels */
     .sidebar nav {
       flex: 1;
-      padding: 20px 0;
+      padding: 16px 0;
+      overflow-y: auto;
+    }
+    .nav-group-label {
+      padding: 12px 24px 4px;
+      font-size: 9px;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      opacity: 0.55;
+      font-family: var(--font-mono);
+      user-select: none;
     }
     .sidebar nav a {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 12px 24px;
+      padding: 10px 20px 10px 24px;
       color: var(--muted);
       text-decoration: none;
       font-size: 12px;
-      letter-spacing: 1.5px;
+      letter-spacing: 1px;
       text-transform: uppercase;
       font-weight: 500;
       border-left: 3px solid transparent;
+      border-radius: 0 4px 4px 0;
+      margin: 1px 8px 1px 0;
       transition: all .18s;
+      position: relative;
     }
-    .sidebar nav a:hover, .sidebar nav a.active {
+    .sidebar nav a:hover {
       color: var(--text);
       background: rgba(232,197,71,.06);
+      border-left-color: rgba(232,197,71,.4);
+    }
+    /* Active state — pill highlight */
+    .sidebar nav a.active {
+      color: var(--text);
+      background: rgba(232,197,71,.12);
       border-left-color: var(--accent);
     }
-    .sidebar nav a .icon { font-size: 16px; }
+    /* Cashier active override */
+    .cashier-nav a:hover {
+      background: rgba(79,209,197,.06);
+      border-left-color: rgba(79,209,197,.4);
+    }
+    .cashier-nav a.active {
+      background: rgba(79,209,197,.12);
+      border-left-color: var(--accent2);
+      color: var(--text);
+    }
+    .sidebar nav a .icon {
+      font-size: 17px;
+      width: 20px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    /* Active dot indicator */
+    .sidebar nav a.active::after {
+      content: '';
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+    .cashier-nav a.active::after { background: var(--accent2); }
+
     .sidebar-footer {
       padding: 16px 24px;
       border-top: 1px solid var(--border);
       font-size: 11px;
       color: var(--muted);
     }
-    .sidebar-footer .user { color: var(--accent); margin-bottom: 8px; }
+    .sidebar-footer .user {
+      color: var(--accent);
+      margin-bottom: 4px;
+      font-size: 12px;
+      letter-spacing: 1px;
+    }
+    .sidebar-footer .role-tag {
+      font-size: 9px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
     .logout-btn {
-      display: block;
-      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
       padding: 8px;
       background: var(--border);
       color: var(--text);
@@ -104,8 +173,8 @@
       font-size: 11px;
       letter-spacing: 1px;
       text-transform: uppercase;
-      border-radius: 2px;
-      transition: background .15s;
+      border-radius: 4px;
+      transition: background .15s, color .15s;
     }
     .logout-btn:hover { background: var(--red); color: #fff; }
 
@@ -133,7 +202,7 @@
     }
     .content { padding: 28px 36px; flex: 1; }
 
-    /* ── FLASH MESSAGES ── */
+    /* ── FLASH MESSAGES — with icons ── */
     .flash-wrap { padding: 0 36px; }
     .flash {
       padding: 12px 18px;
@@ -143,9 +212,13 @@
       border-left: 4px solid;
       border-radius: 2px;
       animation: fadein .3s ease;
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
     .flash.success { background: rgba(94,240,138,.08); border-color: var(--green); color: var(--green); }
     .flash.error   { background: rgba(255,94,94,.08);  border-color: var(--red);   color: var(--red); }
+    .flash-icon { font-size: 14px; flex-shrink: 0; }
     @keyframes fadein { from { opacity:0; transform: translateY(-4px); } to { opacity:1; } }
 
     /* ── BUTTONS ── */
@@ -158,13 +231,14 @@
       letter-spacing: 1px;
       text-transform: uppercase;
       border: none;
-      border-radius: 2px;
+      border-radius: 4px;
       cursor: pointer;
       text-decoration: none;
       transition: opacity .15s, transform .1s;
     }
     .btn:hover { opacity: .85; transform: translateY(-1px); }
     .btn:active { transform: translateY(0); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; pointer-events: none; }
     .btn-yellow { background: var(--accent); color: #0d0f12; }
     .btn-green  { background: var(--green);  color: #0d0f12; }
     .btn-red    { background: var(--red);    color: #fff; }
@@ -173,6 +247,20 @@
 
     /* ── TABLE ── */
     .table-wrap { overflow-x: auto; }
+    /* Table toolbar */
+    .table-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      margin-bottom: 4px;
+    }
+    .table-count {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 1px;
+    }
+    .table-count strong { color: var(--text); }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -190,6 +278,7 @@
       border-bottom: 1px solid var(--border);
       white-space: nowrap;
     }
+    /* Table body — product names in readable sans, data in mono */
     tbody tr {
       border-bottom: 1px solid rgba(31,36,48,.7);
       transition: background .12s;
@@ -199,14 +288,59 @@
       padding: 12px 16px;
       color: var(--text);
       vertical-align: middle;
+      font-family: system-ui, sans-serif;
+      font-size: 13px;
+    }
+    /* Columns that need mono */
+    tbody td .sku-tag,
+    tbody td .price-val,
+    tbody td .qty-val-cell {
+      font-family: var(--font-mono);
     }
     .sku-tag {
       font-size: 11px;
       color: var(--accent);
       letter-spacing: 1px;
     }
-    .stock-low  { color: var(--red); font-weight: 600; }
-    .stock-ok   { color: var(--green); }
+    .stock-low  { color: var(--red); font-weight: 600; font-family: var(--font-mono); }
+    .stock-ok   { color: var(--green); font-family: var(--font-mono); }
+    /* Mini stock bar */
+    .stock-bar-wrap { display: flex; align-items: center; gap: 8px; }
+    .stock-mini-bar {
+      width: 36px; height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .stock-mini-fill { height: 100%; border-radius: 2px; }
+
+    /* Empty state */
+    .empty-state-full {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 64px 0;
+      text-align: center;
+      gap: 12px;
+    }
+    .empty-state-full .empty-icon {
+      font-size: 48px;
+      opacity: .08;
+      color: var(--text);
+    }
+    .empty-state-full .empty-title {
+      font-family: var(--font-head);
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: var(--text);
+    }
+    .empty-state-full .empty-sub {
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: .5px;
+    }
 
     /* ── MODAL ── */
     .modal-overlay {
@@ -221,13 +355,31 @@
     .modal {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 4px;
-      width: 420px;
+      border-radius: 6px;
+      width: 440px;
       max-width: 95vw;
+      /* Scrollable tall modals */
+      max-height: 90vh;
+      overflow-y: auto;
+      overscroll-behavior: contain;
       padding: 32px;
       animation: modal-in .2s ease;
     }
     @keyframes modal-in { from { transform: scale(.95); opacity:0; } to { transform: scale(1); opacity:1; } }
+    /* Modal header — flex so close button is always aligned */
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .modal-header h2 {
+      font-family: var(--font-head);
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: var(--accent);
+    }
     .modal h2 {
       font-family: var(--font-head);
       font-size: 22px;
@@ -245,29 +397,59 @@
       color: var(--muted);
       margin-bottom: 6px;
     }
-    .form-group input {
+    .form-group input,
+    .form-group select {
       width: 100%;
       padding: 10px 14px;
       background: var(--bg);
       border: 1px solid var(--border);
-      border-radius: 2px;
+      border-radius: 4px;
       color: var(--text);
       font-family: var(--font-mono);
       font-size: 13px;
       outline: none;
       transition: border-color .15s;
     }
-    .form-group input:focus { border-color: var(--accent); }
+    .form-group input:focus,
+    .form-group select:focus { border-color: var(--accent); }
     .modal-actions { display: flex; gap: 10px; margin-top: 24px; }
     .modal-actions .btn { flex: 1; justify-content: center; }
-    .close-modal { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; float: right; margin-top: -8px; }
+    .close-modal {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 20px;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+      border-radius: 4px;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background .15s, color .15s;
+    }
+    .close-modal:hover { background: rgba(255,94,94,.12); color: var(--red); }
 
     /* ── ACTION BUTTONS in table ── */
-    .action-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+    .action-btns {
+      display: flex;
+      gap: 6px;
+      flex-wrap: nowrap;
+      min-width: 0;
+    }
     .action-btn {
       font-size: 10px;
       padding: 5px 10px;
       letter-spacing: .8px;
+      white-space: nowrap;
+      border-radius: 4px;
+    }
+    /* Fixed action column width to prevent wrapping */
+    th.actions-col, td.actions-col {
+      width: 1%;
+      white-space: nowrap;
     }
 
     /* ── BADGE ── */
@@ -276,7 +458,7 @@
       padding: 2px 8px;
       font-size: 10px;
       letter-spacing: 1px;
-      border-radius: 2px;
+      border-radius: 20px;
       text-transform: uppercase;
       font-weight: 600;
     }
@@ -294,47 +476,60 @@
       <a href="{{ url_for('dashboard') }}" class="logo">SHOPSTOCK</a>
       <div class="sub">INVENTORY SYSTEM</div>
     </div>
-    <nav>
-      {% if session.role == 'cashier' %}
-        <a href="{{ url_for('cashier_dashboard') }}" class="{{ 'active' if request.endpoint=='cashier_dashboard' }}">
-          <span class="icon">⊡</span> Dashboard
-        </a>
-        <a href="{{ url_for('billing') }}" class="{{ 'active' if request.endpoint=='billing' }}">
-          <span class="icon">🧾</span> Billing Counter
-        </a>
-        <a href="{{ url_for('cashier_my_sales') }}" class="{{ 'active' if request.endpoint=='cashier_my_sales' }}">
-          <span class="icon">📋</span> My Sales
-        </a>
-        <a href="{{ url_for('cashier_customers') }}" class="{{ 'active' if request.endpoint=='cashier_customers' }}">
-          <span class="icon">👥</span> Customers
-        </a>
-      {% else %}
-        <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint=='dashboard' }}">
-          <span class="icon">◈</span> Dashboard
-        </a>
-        <a href="{{ url_for('products') }}" class="{{ 'active' if request.endpoint=='products' }}">
-          <span class="icon">▦</span> Products
-        </a>
-        <a href="{{ url_for('activity_log') }}" class="{{ 'active' if request.endpoint=='activity_log' }}">
-          <span class="icon">≡</span> Activity Log
-        </a>
-        <a href="{{ url_for('suppliers') }}" class="{{ 'active' if request.endpoint=='suppliers' }}">
-          <span class="icon">⌂</span> Suppliers
-        </a>
-        <a href="{{ url_for('sales') }}" class="{{ 'active' if request.endpoint=='sales' }}">
-          <span class="icon">⌂</span> Sales
-        </a>
-        <a href="{{ url_for('reports') }}" class="{{ 'active' if request.endpoint=='reports' }}">
-          <span class="icon">📊 </span> Reports
-        </a>
-        <a href="{{ url_for('finance') }}" class="{{ 'active' if request.endpoint=='finance' }}">
-          <span class="icon">₹</span> Finance
-        </a>
-      {% endif %}
+
+    {% if session.role == 'cashier' %}
+    <nav class="cashier-nav">
+      <div class="nav-group-label">Cashier</div>
+      <a href="{{ url_for('cashier_dashboard') }}" class="{{ 'active' if request.endpoint=='cashier_dashboard' }}">
+        <i class="ti ti-layout-dashboard icon"></i> Dashboard
+      </a>
+      <a href="{{ url_for('billing') }}" class="{{ 'active' if request.endpoint=='billing' }}">
+        <i class="ti ti-receipt icon"></i> Billing Counter
+      </a>
+      <a href="{{ url_for('cashier_my_sales') }}" class="{{ 'active' if request.endpoint=='cashier_my_sales' }}">
+        <i class="ti ti-clipboard-list icon"></i> My Sales
+      </a>
+      <a href="{{ url_for('cashier_customers') }}" class="{{ 'active' if request.endpoint=='cashier_customers' }}">
+        <i class="ti ti-users icon"></i> Customers
+      </a>
     </nav>
+    {% else %}
+    <nav>
+      <div class="nav-group-label">Overview</div>
+      <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint=='dashboard' }}">
+        <i class="ti ti-layout-dashboard icon"></i> Dashboard
+      </a>
+
+      <div class="nav-group-label">Operations</div>
+      <a href="{{ url_for('products') }}" class="{{ 'active' if request.endpoint=='products' }}">
+        <i class="ti ti-box icon"></i> Products
+      </a>
+      <a href="{{ url_for('suppliers') }}" class="{{ 'active' if request.endpoint=='suppliers' }}">
+        <i class="ti ti-truck icon"></i> Suppliers
+      </a>
+      <a href="{{ url_for('sales') }}" class="{{ 'active' if request.endpoint=='sales' }}">
+        <i class="ti ti-shopping-cart icon"></i> Sales
+      </a>
+      <a href="{{ url_for('activity_log') }}" class="{{ 'active' if request.endpoint=='activity_log' }}">
+        <i class="ti ti-list-details icon"></i> Activity Log
+      </a>
+
+      <div class="nav-group-label">Reports</div>
+      <a href="{{ url_for('reports') }}" class="{{ 'active' if request.endpoint=='reports' }}">
+        <i class="ti ti-chart-bar icon"></i> Reports
+      </a>
+      <a href="{{ url_for('finance') }}" class="{{ 'active' if request.endpoint=='finance' }}">
+        <i class="ti ti-coin-rupee icon"></i> Finance
+      </a>
+    </nav>
+    {% endif %}
+
     <div class="sidebar-footer">
       <div class="user">{{ session.username }}</div>
-      <a href="{{ url_for('logout') }}" class="logout-btn">⏻ Logout</a>
+      <div class="role-tag">{{ session.role | title }}</div>
+      <a href="{{ url_for('logout') }}" class="logout-btn">
+        <i class="ti ti-power"></i> Logout
+      </a>
     </div>
   </aside>
   {% endif %}
@@ -343,7 +538,10 @@
     <div class="flash-wrap">
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% for cat, msg in messages %}
-          <div class="flash {{ cat }}">{{ msg }}</div>
+          <div class="flash {{ cat }}">
+            <span class="flash-icon">{% if cat == 'success' %}✓{% else %}⚠{% endif %}</span>
+            {{ msg }}
+          </div>
         {% endfor %}
       {% endwith %}
     </div>
@@ -351,7 +549,7 @@
   </main>
 
   <script>
-    // ── Auto-dismiss flash messages after 4 seconds ──────────────────────────
+    // Auto-dismiss flash messages after 4 seconds
     setTimeout(() => {
       document.querySelectorAll('.flash').forEach(el => {
         el.style.transition = 'opacity .5s';
@@ -360,8 +558,18 @@
       });
     }, 4000);
 
-    // ── Logout when tab/browser is closed ────────────────────────────────────
-    // Uses sendBeacon so the request fires even as the page unloads
+    // Prevent double-submit on all forms — disable submit button on submit
+    document.addEventListener('submit', function(e) {
+      const form = e.target;
+      const submitBtn = form.querySelector('[type="submit"]');
+      if (submitBtn && !submitBtn.dataset.noDisable) {
+        submitBtn.disabled = true;
+        submitBtn.style.opacity = '0.6';
+        submitBtn.style.cursor = 'not-allowed';
+        // Re-enable after 8s as a fallback
+        setTimeout(() => { submitBtn.disabled = false; submitBtn.style.opacity = ''; submitBtn.style.cursor = ''; }, 8000);
+      }
+    });
   </script>
 </body>
 </html>

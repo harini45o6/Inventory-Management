@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}– My Sales{% endblock %}
+
+{% block head %}
+<style>
+:root { --ca: #4fd1c5; }
+.cashier-nav a.active { border-left-color: var(--ca); background: rgba(79,209,197,.12); color: var(--text); }
+.cashier-nav a.active::after { background: var(--ca); }
+
+.filter-tabs { display:flex; gap:8px; align-items:center; }
+.ftab {
+  padding: 7px 18px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: all .15s;
+}
+.ftab:hover, .ftab.active {
+  background: rgba(79,209,197,.1);
+  border-color: var(--ca);
+  color: var(--ca);
+}
+
+.stat-strip {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.sstat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--ca);
+  padding: 18px 24px;
+  min-width: 160px;
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+}
+.sstat:nth-child(2) { border-top-color: var(--accent); }
+.sstat-label { font-size: 9px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.sstat-value { font-family: var(--font-head); font-size: 32px; font-weight: 800; color: var(--ca); }
+.sstat:nth-child(2) .sstat-value { color: var(--accent); }
+.sstat-icon {
+  position: absolute;
+  right: 14px; top: 50%;
+  transform: translateY(-50%);
+  font-size: 30px;
+  opacity: .07;
+  color: var(--text);
+}
+
+/* Table enhancements */
+.sales-table td { font-family: system-ui, sans-serif; }
+.sales-table td .sku-val,
+.sales-table td .money-val,
+.sales-table td .date-val { font-family: var(--font-mono); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <h1>MY SALES</h1>
+  <div class="filter-tabs">
+    <a href="?date=today"  class="ftab {% if date_filter=='today'  %}active{% endif %}">Today</a>
+    <a href="?date=week"   class="ftab {% if date_filter=='week'   %}active{% endif %}">This Week</a>
+    <a href="?date=month"  class="ftab {% if date_filter=='month'  %}active{% endif %}">This Month</a>
+  </div>
+</div>
+
+<div class="content">
+  <div class="stat-strip">
+    <div class="sstat">
+      <div class="sstat-label">Transactions</div>
+      <div class="sstat-value">{{ total_count }}</div>
+      <i class="ti ti-receipt sstat-icon"></i>
+    </div>
+    <div class="sstat">
+      <div class="sstat-label">Revenue</div>
+      <div class="sstat-value">₹{{ "%.0f"|format(total_revenue) }}</div>
+      <i class="ti ti-coin-rupee sstat-icon"></i>
+    </div>
+    {% if total_count > 0 %}
+    <div class="sstat" style="border-top-color:var(--green);">
+      <div class="sstat-label">Avg. Sale</div>
+      <div class="sstat-value" style="color:var(--green);">₹{{ "%.0f"|format(total_revenue / total_count) }}</div>
+      <i class="ti ti-chart-bar sstat-icon"></i>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Table toolbar -->
+  <div class="table-toolbar">
+    <span class="table-count">
+      <strong>{{ my_sales|length }}</strong> sales in this period
+    </span>
+  </div>
+
+  <div class="table-wrap">
+    <table class="sales-table">
+      <thead>
+        <tr>
+          <th>Invoice</th>
+          <th>Date &amp; Time</th>
+          <th>Customer</th>
+          <th>Items</th>
+          <th>Total</th>
+          <th>Payment</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in my_sales %}
+        <tr>
+          <td><span class="sku-tag sku-val">{{ s.invoice_no }}</span></td>
+          <td><span class="date-val" style="font-size:11px;white-space:nowrap;">
+            {{ s.sale_date.strftime('%d %b %Y, %I:%M %p') if s.sale_date else '—' }}
+          </span></td>
+          <td>{{ s.customer }}</td>
+          <td style="color:var(--muted);font-family:var(--font-mono);">{{ s.item_count }} units</td>
+          <td style="font-weight:600;"><span class="money-val" style="color:var(--accent);">₹{{ "%.2f"|format(s.total) }}</span></td>
+          <td style="font-size:11px;color:var(--muted);">{{ s.note or '—' }}</td>
+          <td>
+            {% if s.status == 'completed' %}
+              <span class="badge badge-in">✓ Done</span>
+            {% else %}
+              <span class="badge badge-out">↩ Refund</span>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{{ url_for('sales_invoice', sale_id=s.id) }}"
+               class="btn btn-ghost action-btn" target="_blank">
+              <i class="ti ti-printer"></i> Invoice
+            </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8">
+            <div class="empty-state-full">
+              <i class="ti ti-receipt empty-icon"></i>
+              <div class="empty-title">No sales in this period</div>
+              <div class="empty-sub">Try selecting a different time range above</div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -11,7 +11,7 @@ select.form-control,
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 2px;
+  border-radius: 4px;
   font-family: var(--font-mono);
   font-size: 13px;
   appearance: none;
@@ -42,11 +42,24 @@ select.form-control option,
 <div class="topbar">
   <h1>INVENTORY</h1>
   <div style="display:flex;gap:10px;align-items:center;">
-    <button class="btn btn-yellow" onclick="openModal('add-modal')">＋ Add Item</button>
+    <button class="btn btn-yellow" onclick="openModal('add-modal')">
+      <i class="ti ti-plus"></i> Add Item
+    </button>
   </div>
 </div>
 
 <div class="content">
+
+  <!-- Table toolbar: count + search hint -->
+  <div class="table-toolbar">
+    <span class="table-count">
+      <strong>{{ items|length }}</strong> products in inventory
+    </span>
+    <span style="font-size:11px;color:var(--muted);">
+      <kbd style="background:var(--border);padding:1px 6px;border-radius:3px;font-size:10px;">Click row buttons</kbd> to manage stock
+    </span>
+  </div>
+
   <div class="table-wrap">
     <table id="products-table">
       <thead>
@@ -56,7 +69,7 @@ select.form-control option,
           <th>Category</th>
           <th>Price</th>
           <th>Stock</th>
-          <th>Actions</th>
+          <th class="actions-col">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -72,28 +85,54 @@ select.form-control option,
         >
           <td><span class="sku-tag">{{ item.sku }}</span></td>
           <td>{{ item.name }}</td>
-          <td>{{ item.category }}</td>
-          <td>₹{{ "%.2f"|format(item.price) }}</td>
+          <td style="color:var(--muted);font-size:12px;">{{ item.category }}</td>
+          <td><span class="price-val">₹{{ "%.2f"|format(item.price) }}</span></td>
           <td>
-            <span class="{{ 'stock-low' if item.stock < 10 else 'stock-ok' }}">
-              {{ item.stock }}
-            </span>
+            <!-- Stock count + mini bar for at-a-glance level -->
+            <div class="stock-bar-wrap">
+              <span class="{{ 'stock-low' if item.stock < 10 else 'stock-ok' }}">{{ item.stock }}</span>
+              <div class="stock-mini-bar">
+                <div class="stock-mini-fill" style="
+                  width: {{ [item.stock, 100]|min }}%;
+                  background: {{ 'var(--red)' if item.stock < 10 else 'var(--green)' }};
+                "></div>
+              </div>
+            </div>
           </td>
-          <td>
+          <td class="actions-col">
             <div class="action-btns">
-              <button class="btn btn-green action-btn"  data-action="stock-in">▲ IN</button>
-              <button class="btn btn-red action-btn"    data-action="stock-out">▼ OUT</button>
-              <button class="btn btn-blue action-btn"   data-action="price">$ Price</button>
-              <button class="btn btn-ghost action-btn"  data-action="supplier">⬡ Supplier</button>
-              <button class="btn action-btn" style="background:#1e3a5f;color:#5ea9ff;" data-action="edit">✎ Edit</button>
-              <button class="btn btn-red action-btn"    data-action="delete">✕ Delete</button>
+              <button class="btn btn-green action-btn" data-action="stock-in" title="Add stock">
+                <i class="ti ti-arrow-up"></i> IN
+              </button>
+              <button class="btn btn-red action-btn" data-action="stock-out" title="Remove stock">
+                <i class="ti ti-arrow-down"></i> OUT
+              </button>
+              <button class="btn btn-blue action-btn" data-action="price" title="Change price">
+                <i class="ti ti-tag"></i> Price
+              </button>
+              <button class="btn btn-ghost action-btn" data-action="supplier" title="View supplier">
+                <i class="ti ti-building-warehouse"></i>
+              </button>
+              <button class="btn action-btn" style="background:#1e3a5f;color:#5ea9ff;" data-action="edit" title="Edit product">
+                <i class="ti ti-edit"></i>
+              </button>
+              <button class="btn btn-red action-btn" data-action="delete" title="Delete product">
+                <i class="ti ti-trash"></i>
+              </button>
             </div>
           </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="6" style="text-align:center;color:var(--muted);padding:40px;">
-            No products found. Add one to get started.
+          <td colspan="6">
+            <div class="empty-state-full">
+              <i class="ti ti-box empty-icon"></i>
+              <div class="empty-title">No products yet</div>
+              <div class="empty-sub">Add your first product to start tracking inventory</div>
+              <button class="btn btn-yellow" onclick="openModal('add-modal')" style="margin-top:8px;">
+                <i class="ti ti-plus"></i> Add First Product
+              </button>
+            </div>
           </td>
         </tr>
         {% endfor %}
@@ -105,12 +144,14 @@ select.form-control option,
 <!-- ══ ADD ITEM MODAL ══════════════════════════════════════════════ -->
 <div class="modal-overlay" id="add-modal">
   <div class="modal">
-    <button class="close-modal" onclick="closeModal('add-modal')">×</button>
-    <h2>ADD ITEM</h2>
+    <div class="modal-header">
+      <h2>ADD ITEM</h2>
+      <button class="close-modal" onclick="closeModal('add-modal')" aria-label="Close"><i class="ti ti-x"></i></button>
+    </div>
     <form method="POST" action="{{ url_for('add_item') }}">
       <div class="form-group">
         <label>Name</label>
-        <input type="text" name="name" required placeholder="Product name"/>
+        <input type="text" name="name" required placeholder="e.g. Organic Basmati Rice"/>
       </div>
       <div class="form-group">
         <label>Category</label>
@@ -119,11 +160,11 @@ select.form-control option,
         </select>
       </div>
       <div class="form-group">
-        <label>Price</label>
+        <label>Price (₹)</label>
         <input type="number" name="price" required step="0.01" min="0" placeholder="0.00"/>
       </div>
       <div class="form-group">
-        <label>Initial Stock</label>
+        <label>Initial Stock <span style="color:var(--muted);font-size:9px;">(units)</span></label>
         <input type="number" name="stock" required min="0" placeholder="0"/>
       </div>
       <div class="form-group">
@@ -151,7 +192,7 @@ select.form-control option,
         </div>
       </div>
       <div class="modal-actions">
-        <button type="submit" class="btn btn-yellow">Add Product</button>
+        <button type="submit" class="btn btn-yellow"><i class="ti ti-check"></i> Add Product</button>
         <button type="button" class="btn btn-ghost" onclick="closeModal('add-modal')">Cancel</button>
       </div>
     </form>
@@ -161,13 +202,15 @@ select.form-control option,
 <!-- ══ RESTOCK IN / OUT MODAL ══════════════════════════════════════ -->
 <div class="modal-overlay" id="stock-modal">
   <div class="modal">
-    <button class="close-modal" onclick="closeModal('stock-modal')">×</button>
-    <h2 id="stock-modal-title">RESTOCK</h2>
+    <div class="modal-header">
+      <h2 id="stock-modal-title">RESTOCK</h2>
+      <button class="close-modal" onclick="closeModal('stock-modal')" aria-label="Close"><i class="ti ti-x"></i></button>
+    </div>
     <p id="stock-modal-info" style="font-size:12px;color:var(--muted);margin-bottom:20px;"></p>
     <form method="POST" id="stock-form">
       <input type="hidden" name="sku" id="stock-sku"/>
       <div class="form-group">
-        <label>Quantity</label>
+        <label>Quantity <span style="color:var(--muted);font-size:9px;">(units)</span></label>
         <input type="number" name="qty" id="stock-qty" required min="1" placeholder="Enter quantity"/>
       </div>
       <div class="modal-actions">
@@ -181,17 +224,19 @@ select.form-control option,
 <!-- ══ CHANGE PRICE MODAL ══════════════════════════════════════════ -->
 <div class="modal-overlay" id="price-modal">
   <div class="modal">
-    <button class="close-modal" onclick="closeModal('price-modal')">×</button>
-    <h2>CHANGE PRICE</h2>
+    <div class="modal-header">
+      <h2>CHANGE PRICE</h2>
+      <button class="close-modal" onclick="closeModal('price-modal')" aria-label="Close"><i class="ti ti-x"></i></button>
+    </div>
     <p id="price-modal-info" style="font-size:12px;color:var(--muted);margin-bottom:20px;"></p>
     <form method="POST" action="{{ url_for('change_price') }}">
       <input type="hidden" name="sku" id="price-sku"/>
       <div class="form-group">
-        <label>New Price</label>
+        <label>New Price (₹)</label>
         <input type="number" name="new_price" id="price-input" required step="0.01" min="0" placeholder="0.00"/>
       </div>
       <div class="modal-actions">
-        <button type="submit" class="btn btn-blue">Update Price</button>
+        <button type="submit" class="btn btn-blue"><i class="ti ti-check"></i> Update Price</button>
         <button type="button" class="btn btn-ghost" onclick="closeModal('price-modal')">Cancel</button>
       </div>
     </form>
@@ -201,8 +246,10 @@ select.form-control option,
 <!-- ══ SUPPLIER INFO MODAL ═════════════════════════════════════════ -->
 <div class="modal-overlay" id="supplier-modal">
   <div class="modal">
-    <button class="close-modal" onclick="closeModal('supplier-modal')">×</button>
-    <h2>SUPPLIER INFO</h2>
+    <div class="modal-header">
+      <h2>SUPPLIER INFO</h2>
+      <button class="close-modal" onclick="closeModal('supplier-modal')" aria-label="Close"><i class="ti ti-x"></i></button>
+    </div>
     <p id="supplier-modal-product" style="font-size:12px;color:var(--muted);margin-bottom:20px;"></p>
     <p id="supplier-modal-name" style="font-size:15px;font-weight:600;"></p>
   </div>
@@ -211,10 +258,12 @@ select.form-control option,
 <!-- ══ SELECT PRODUCT TO EDIT MODAL ════════════════════════════════ -->
 <div class="modal-overlay" id="edit-select-modal">
   <div class="modal">
-    <button class="close-modal" onclick="closeModal('edit-select-modal')">×</button>
-    <h2>SELECT PRODUCT TO EDIT</h2>
+    <div class="modal-header">
+      <h2>SELECT PRODUCT</h2>
+      <button class="close-modal" onclick="closeModal('edit-select-modal')" aria-label="Close"><i class="ti ti-x"></i></button>
+    </div>
     <div class="form-group">
-      <label>Product ID / SKU</label>
+      <label>Product SKU</label>
       <select id="edit-product-select" class="form-control" onchange="loadProductForEdit(this.value)">
         <option value="" disabled selected>— Select a product —</option>
         {% for item in items %}
@@ -232,37 +281,37 @@ select.form-control option,
       </div>
     </div>
     <div class="modal-actions" style="margin-top:16px;">
-      <button class="btn btn-blue" id="edit-proceed-btn" disabled onclick="proceedToEdit()">Edit This Product</button>
+      <button class="btn btn-blue" id="edit-proceed-btn" disabled onclick="proceedToEdit()">
+        <i class="ti ti-edit"></i> Edit This Product
+      </button>
       <button type="button" class="btn btn-ghost" onclick="closeModal('edit-select-modal')">Cancel</button>
     </div>
   </div>
 </div>
 
-<!-- ══ EDIT PRODUCT MODAL (name · category · supplier only) ════════ -->
+<!-- ══ EDIT PRODUCT MODAL ════════════════════════════════════════── -->
 <div class="modal-overlay" id="edit-modal">
   <div class="modal">
-    <button class="close-modal" onclick="closeModal('edit-modal')">×</button>
-    <h2>EDIT PRODUCT</h2>
+    <div class="modal-header">
+      <h2>EDIT PRODUCT</h2>
+      <button class="close-modal" onclick="closeModal('edit-modal')" aria-label="Close"><i class="ti ti-x"></i></button>
+    </div>
     <form method="POST" action="{{ url_for('edit_product') }}">
       <input type="hidden" name="sku" id="edit-sku"/>
-
       <div class="form-group">
-        <label>SKU <span style="color:var(--muted);font-size:10px;">(read-only)</span></label>
+        <label>SKU <span style="color:var(--muted);font-size:9px;">(read-only)</span></label>
         <input type="text" id="edit-sku-display" disabled style="opacity:.45;cursor:not-allowed;"/>
       </div>
-
       <div class="form-group">
         <label>Name</label>
         <input type="text" name="name" id="edit-name" required/>
       </div>
-
       <div class="form-group">
         <label>Category</label>
         <select name="category" id="edit-category" class="form-control" required>
           <option value="" disabled selected>Loading…</option>
         </select>
       </div>
-
       <div class="form-group">
         <label>Supplier</label>
         <select name="supplier_id" id="edit-supplier-select" class="form-control">
@@ -273,7 +322,6 @@ select.form-control option,
           <option value="__new_edit__">＋ Add new supplier</option>
         </select>
       </div>
-
       <div id="edit-new-supplier-fields" style="display:none;">
         <div class="form-group">
           <label>Supplier Name</label>
@@ -288,54 +336,31 @@ select.form-control option,
           <input type="email" name="new_supplier_email" placeholder="supplier@example.com"/>
         </div>
       </div>
-
       <div class="modal-actions">
-        <button type="submit" class="btn btn-blue">Save Changes</button>
+        <button type="submit" class="btn btn-blue"><i class="ti ti-check"></i> Save Changes</button>
         <button type="button" class="btn btn-ghost" onclick="closeModal('edit-modal')">Cancel</button>
       </div>
     </form>
   </div>
 </div>
 
-<!-- ══ ADD SUPPLIER MODAL ════════════════════════════════════════════ -->
-<div class="modal-overlay" id="add-supplier-modal">
-  <div class="modal">
-    <button class="close-modal" onclick="closeModal('add-supplier-modal')">×</button>
-    <h2>ADD SUPPLIER</h2>
-    <form method="POST" action="{{ url_for('add_supplier') }}">
-      <div class="form-group">
-        <label>Supplier Name</label>
-        <input type="text" name="supplier_name" required placeholder="e.g. Acme Distributors"/>
-      </div>
-      <div class="form-group">
-        <label>Contact Number</label>
-        <input type="text" name="contact" placeholder="+91 98765 43210"/>
-      </div>
-      <div class="form-group">
-        <label>Email</label>
-        <input type="email" name="email" placeholder="supplier@example.com"/>
-      </div>
-      <div class="modal-actions">
-        <button type="submit" class="btn btn-yellow">Add Supplier</button>
-        <button type="button" class="btn btn-ghost" onclick="closeModal('add-supplier-modal')">Cancel</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<!-- ══ DELETE PRODUCT MODAL ════════════════════════════════════════ -->
+<!-- ══ DELETE PRODUCT MODAL — with explicit confirmation ══════════ -->
 <div class="modal-overlay" id="delete-modal">
   <div class="modal">
-    <button class="close-modal" onclick="closeModal('delete-modal')">×</button>
-    <h2 style="color:var(--red)">DELETE PRODUCT</h2>
-    <p id="delete-product-info" style="font-size:13px;color:var(--text);margin-bottom:8px;"></p>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:24px;">
-      This action is permanent. History is preserved in the activity log.
-    </p>
+    <div class="modal-header">
+      <h2 style="color:var(--red);">DELETE PRODUCT</h2>
+      <button class="close-modal" onclick="closeModal('delete-modal')" aria-label="Close"><i class="ti ti-x"></i></button>
+    </div>
+    <div style="background:rgba(255,94,94,.08);border:1px solid rgba(255,94,94,.2);border-radius:6px;padding:14px;margin-bottom:16px;">
+      <p id="delete-product-info" style="font-size:13px;color:var(--text);margin-bottom:6px;"></p>
+      <p style="font-size:12px;color:var(--muted);">
+        This action is permanent and cannot be undone. Stock history will be preserved in the activity log.
+      </p>
+    </div>
     <form method="POST" action="{{ url_for('delete_product') }}">
       <input type="hidden" name="sku" id="delete-sku"/>
       <div class="modal-actions">
-        <button type="submit" class="btn btn-red">Confirm Delete</button>
+        <button type="submit" class="btn btn-red"><i class="ti ti-trash"></i> Yes, Delete</button>
         <button type="button" class="btn btn-ghost" onclick="closeModal('delete-modal')">Cancel</button>
       </div>
     </form>
@@ -359,14 +384,12 @@ document.getElementById('products-table').addEventListener('click', function(e) 
   if (!btn) return;
 
   var row = btn.closest('tr');
-  if (!row || !row.dataset.sku) return;   // guard against header / empty row
+  if (!row || !row.dataset.sku) return;
 
   var sku     = row.dataset.sku;
   var name    = row.dataset.name;
-  var cat     = row.dataset.category;
   var price   = parseFloat(row.dataset.price)   || 0;
   var stock   = parseInt(row.dataset.stock, 10) || 0;
-  var supId   = row.dataset.supplierId           || '';
   var supName = row.dataset.supplierName         || 'Not assigned';
 
   switch (btn.dataset.action) {
@@ -375,13 +398,12 @@ document.getElementById('products-table').addEventListener('click', function(e) 
     case 'price':     openPriceModal(sku, name, price);        break;
     case 'supplier':  openSupplierModal(sku, name, supName);   break;
     case 'edit':
-      // Pre-select this product in the dropdown then open select modal
       var selEl = document.getElementById('edit-product-select');
       selEl.value = sku;
       loadProductForEdit(sku);
       openModal('edit-select-modal');
       break;
-    case 'delete':    openDeleteModal(sku, name);              break;
+    case 'delete': openDeleteModal(sku, name); break;
   }
 });
 
@@ -409,7 +431,7 @@ function buildCategorySelect(selEl, selectedVal) {
       var inp = document.createElement('input');
       inp.type = 'text'; inp.name = 'category'; inp.required = true;
       inp.placeholder = 'Enter new category name';
-      inp.style.cssText = 'width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:2px;color:var(--text);font-family:var(--font-mono);font-size:13px;outline:none;';
+      inp.style.cssText = 'width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:13px;outline:none;';
       this.parentNode.replaceChild(inp, this); inp.focus();
     };
   });
@@ -424,7 +446,7 @@ function openStockModal(type, sku, name, current) {
   var isIn = (type === 'in');
   document.getElementById('stock-modal-title').textContent = isIn ? 'RESTOCK IN' : 'RESTOCK OUT';
   document.getElementById('stock-modal-info').textContent  =
-    name + ' (SKU: ' + sku + ') — Current stock: ' + current;
+    name + ' (SKU: ' + sku + ') — Current stock: ' + current + ' units';
   document.getElementById('stock-sku').value = sku;
   document.getElementById('stock-qty').max   = isIn ? '' : current;
   document.getElementById('stock-qty').value = '';
@@ -433,10 +455,13 @@ function openStockModal(type, sku, name, current) {
   form.action = isIn ? '{{ url_for("restock_in") }}' : '{{ url_for("restock_out") }}';
 
   var submitBtn = document.getElementById('stock-submit-btn');
-  submitBtn.textContent = isIn ? '▲ Add Stock' : '▼ Remove Stock';
-  submitBtn.className   = 'btn ' + (isIn ? 'btn-green' : 'btn-red');
+  submitBtn.innerHTML = isIn
+    ? '<i class="ti ti-arrow-up"></i> Add Stock'
+    : '<i class="ti ti-arrow-down"></i> Remove Stock';
+  submitBtn.className = 'btn ' + (isIn ? 'btn-green' : 'btn-red');
 
   openModal('stock-modal');
+  setTimeout(function() { document.getElementById('stock-qty').focus(); }, 100);
 }
 
 /* ══ PRICE MODAL ════════════════════════════════════════════════════ */
@@ -446,6 +471,7 @@ function openPriceModal(sku, name, currentPrice) {
   document.getElementById('price-sku').value   = sku;
   document.getElementById('price-input').value = currentPrice.toFixed(2);
   openModal('price-modal');
+  setTimeout(function() { document.getElementById('price-input').focus(); }, 100);
 }
 
 /* ══ SUPPLIER INFO MODAL ════════════════════════════════════════════ */
@@ -468,7 +494,7 @@ function loadProductForEdit(sku) {
       document.getElementById('esd-name').textContent     = p.name;
       document.getElementById('esd-cat').textContent      = p.category;
       document.getElementById('esd-price').textContent    = '₹' + parseFloat(p.price).toFixed(2);
-      document.getElementById('esd-stock').textContent    = p.stock;
+      document.getElementById('esd-stock').textContent    = p.stock + ' units';
       document.getElementById('esd-supplier').textContent = p.supplier_name || 'Not assigned';
       document.getElementById('edit-select-details').style.display = 'block';
       document.getElementById('edit-proceed-btn').disabled = false;
@@ -512,7 +538,7 @@ function openDeleteModal(sku, name) {
   openModal('delete-modal');
 }
 
-/* ══ NEW SUPPLIER TOGGLE (Add Item modal) ═══════════════════════════ */
+/* ══ NEW SUPPLIER TOGGLE ════════════════════════════════════════════ */
 function toggleNewSupplier(val) {
   var show = (val === '__new__');
   document.getElementById('new-supplier-fields').style.display = show ? 'block' : 'none';

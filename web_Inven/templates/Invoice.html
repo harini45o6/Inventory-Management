@@ -6,15 +6,33 @@
 /* ── Print styles ── */
 @media print {
   .topbar, .no-print { display: none !important; }
+  body, .main {
+    background: #fff !important;
+    color: #000 !important;
+    margin: 0 !important;
+  }
   .invoice-card {
     border: none !important;
     box-shadow: none !important;
-    padding: 0 !important;
+    padding: 24px !important;
+    max-width: 100% !important;
+    background: #fff !important;
   }
-  body { background: #fff !important; color: #000 !important; }
-  .inv-table th { background: #f4f4f4 !important; color: #333 !important; }
-  .inv-table td { color: #000 !important; border-color: #ddd !important; }
-  .inv-total-row { border-top-color: #ccc !important; }
+  .inv-header { border-bottom-color: #c8a000 !important; }
+  .inv-brand { color: #c8a000 !important; }
+  .inv-brand span { color: #222 !important; }
+  .inv-meta .inv-no { color: #111 !important; }
+  .inv-meta .inv-date { color: #666 !important; }
+  .inv-table th { background: #f4f4f4 !important; color: #555 !important; border-bottom-color: #ddd !important; }
+  .inv-table td { color: #111 !important; border-bottom-color: #eee !important; }
+  .inv-total-row { border-top-color: #ddd !important; color: #555 !important; }
+  .inv-total-row.grand { border-top-color: #c8a000 !important; color: #111 !important; }
+  .inv-total-row.grand .amount { color: #c8a000 !important; }
+  .sku-tag { color: #c8a000 !important; }
+  .inv-bill .bill-label { color: #888 !important; }
+  .inv-bill .bill-name { color: #111 !important; }
+  .inv-footer { color: #888 !important; border-top-color: #eee !important; }
+  .gst-notice { color: #555 !important; }
 }
 
 /* ── Invoice card ── */
@@ -34,12 +52,12 @@
   align-items: flex-start;
   margin-bottom: 36px;
   padding-bottom: 24px;
-  border-bottom: 2px solid var(--yellow, #facc15);
+  border-bottom: 2px solid var(--accent, #e8c547);
 }
-.inv-brand { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: var(--yellow, #facc15); }
-.inv-brand span { color: var(--fg, #eee); font-weight: 400; }
+.inv-brand { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: var(--accent, #e8c547); }
+.inv-brand span { color: var(--text, #eee); font-weight: 400; }
 .inv-meta { text-align: right; }
-.inv-meta .inv-no { font-size: 20px; font-weight: 700; color: var(--fg, #eee); }
+.inv-meta .inv-no { font-size: 20px; font-weight: 700; color: var(--text, #eee); }
 .inv-meta .inv-date { font-size: 12px; color: var(--muted, #888); margin-top: 4px; }
 .inv-meta .badge {
   display: inline-block;
@@ -57,7 +75,7 @@
 /* ── Bill to ── */
 .inv-bill { margin-bottom: 28px; }
 .inv-bill .bill-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted, #888); margin-bottom: 6px; }
-.inv-bill .bill-name  { font-size: 15px; font-weight: 600; color: var(--fg, #eee); }
+.inv-bill .bill-name  { font-size: 15px; font-weight: 600; color: var(--text, #eee); }
 .inv-note { font-size: 13px; color: var(--muted, #888); margin-top: 4px; }
 
 /* ── Items table ── */
@@ -77,30 +95,40 @@
 .inv-table td {
   padding: 12px 14px;
   border-bottom: 1px solid var(--border, #1e1e1e);
-  color: var(--fg, #eee);
+  color: var(--text, #eee);
 }
 .inv-table tbody tr:last-child td { border-bottom: none; }
 
 /* ── Total ── */
 .inv-total-section { margin-top: 8px; display: flex; justify-content: flex-end; }
-.inv-total-box { min-width: 260px; }
+.inv-total-box { min-width: 280px; }
 .inv-total-row {
   display: flex;
   justify-content: space-between;
-  padding: 8px 0;
+  padding: 7px 0;
   font-size: 13px;
   color: var(--muted, #888);
   border-top: 1px solid var(--border, #2a2a2a);
 }
+.inv-total-row:first-child { border-top: none; }
 .inv-total-row.grand {
   font-size: 16px;
   font-weight: 700;
-  color: var(--fg, #eee);
-  border-top: 2px solid var(--yellow, #facc15);
+  color: var(--text, #eee);
+  border-top: 2px solid var(--accent, #e8c547);
   margin-top: 4px;
   padding-top: 12px;
 }
-.inv-total-row.grand .amount { color: var(--yellow, #facc15); }
+.inv-total-row.grand .amount { color: var(--accent, #e8c547); }
+
+/* ── GST notice ── */
+.gst-notice {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--muted, #888);
+  text-align: right;
+  letter-spacing: 0.3px;
+}
 
 /* ── Footer ── */
 .inv-footer {
@@ -116,8 +144,12 @@
 <div class="topbar no-print">
   <h1>INVOICE</h1>
   <div style="display:flex;gap:10px;">
-    <a href="{{ url_for('sales') }}" class="btn btn-ghost">← Back to Sales</a>
-    <button class="btn btn-yellow" onclick="window.print()">🖨 Print / Save PDF</button>
+    <a href="{{ url_for('sales') }}" class="btn btn-ghost">
+      <i class="ti ti-arrow-left"></i> Back to Sales
+    </a>
+    <button class="btn btn-yellow" onclick="window.print()">
+      <i class="ti ti-printer"></i> Print / Save PDF
+    </button>
   </div>
 </div>
 
@@ -144,7 +176,7 @@
       <div class="bill-label">Bill To</div>
       <div class="bill-name">{{ sale.customer or 'Walk-in Customer' }}</div>
       {% if sale.note %}
-        <div class="inv-note">Note: {{ sale.note }}</div>
+        <div class="inv-note">Payment: {{ sale.note }}</div>
       {% endif %}
     </div>
 
@@ -174,15 +206,26 @@
       </tbody>
     </table>
 
-    <!-- Total -->
+    <!-- Total — with GST breakdown -->
     <div class="inv-total-section">
       <div class="inv-total-box">
+        {% set subtotal = sale.total / 1.18 %}
+        {% set gst = sale.total - subtotal %}
+        <div class="inv-total-row">
+          <span>Subtotal (excl. GST)</span>
+          <span>₹{{ "%.2f"|format(subtotal) }}</span>
+        </div>
+        <div class="inv-total-row">
+          <span>GST (18%)</span>
+          <span>₹{{ "%.2f"|format(gst) }}</span>
+        </div>
         <div class="inv-total-row grand">
           <span>Total Amount</span>
           <span class="amount">₹{{ "%.2f"|format(sale.total) }}</span>
         </div>
       </div>
     </div>
+    <div class="gst-notice">All amounts inclusive of 18% GST</div>
 
     <!-- Footer -->
     <div class="inv-footer">

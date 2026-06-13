@@ -1,118 +1,152 @@
 {% extends "base.html" %}
 {% block title %}– Suppliers{% endblock %}
 {% block content %}
-{% with messages = get_flashed_messages(with_categories=true) %}
-  {% if messages %}
-    {% for category, message in messages %}
-<div class="flash-msg {{ category }}">{{ message }}</div>
-    {% endfor %}
-  {% endif %}
-{% endwith %}
+
 <style>
-.flash-msg {
-  padding: 10px 16px;
-  border-radius: 6px;
-  margin-bottom: 14px;
-  font-size: 13px;
-  font-weight: 500;
-}
-.flash-msg.success { background: #1a3a2a; color: #4ade80; border: 1px solid #166534; }
-.flash-msg.error   { background: #3a1a1a; color: #f87171; border: 1px solid #991b1b; }
+/* ── Flash messages ── */
+.flash-msg { padding:10px 16px; border-radius:4px; margin-bottom:14px; font-size:13px; font-weight:500; }
+.flash-msg.success { background:#1a3a2a; color:#4ade80; border:1px solid #166534; }
+.flash-msg.error   { background:#3a1a1a; color:#f87171; border:1px solid #991b1b; }
 
-/* Expandable products sub-row */
-.supplier-products-row { display: none; }
-.supplier-products-row.open { display: table-row; }
-.products-inner { background: var(--surface, #111); padding: 0; }
-.products-inner table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.products-inner th {
-  background: var(--surface, #1a1a1a);
-  color: var(--muted, #888);
-  padding: 8px 14px;
-  text-align: left;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid var(--border, #2a2a2a);
+/* ── Summary strip ── */
+.finance-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 14px;
+  margin-bottom: 26px;
 }
-.products-inner td {
-  padding: 9px 14px;
-  border-bottom: 1px solid var(--border, #222);
-  color: var(--fg, #eee);
-}
-.products-inner tr:last-child td { border-bottom: none; }
-.empty-inner {
-  padding: 20px;
-  text-align: center;
-  color: var(--muted, #888);
-  font-size: 13px;
-}
-.toggle-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--muted, #888);
-  font-size: 13px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  transition: color 0.15s;
-}
-.toggle-btn:hover { color: var(--fg, #eee); }
-.action-btns { display: flex; gap: 6px; flex-wrap: wrap; }
-
-/* View Products Modal */
-#view-products-modal .modal {
-  max-width: 680px;
-  width: 95%;
-}
-#view-products-modal .modal-subtitle {
-  font-size: 12px;
-  color: var(--muted, #888);
-  margin: -10px 0 18px 0;
-}
-#view-products-modal .products-inner {
-  border-radius: 6px;
-  border: 1px solid var(--border, #2a2a2a);
+.fstat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 16px 20px;
+  position: relative;
   overflow: hidden;
-  max-height: 380px;
-  overflow-y: auto;
 }
-#view-products-modal .products-inner table {
-  font-size: 13px;
+.fstat::before {
+  content:'';
+  position:absolute; top:0; left:0; right:0; height:2px;
+  background: var(--fcolor, var(--accent));
 }
-#view-products-modal .products-inner th {
-  padding: 10px 16px;
-  font-size: 11px;
-}
-#view-products-modal .products-inner td {
-  padding: 10px 16px;
-}
+.fstat-label { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin-bottom:6px; }
+.fstat-value { font-family:var(--font-head); font-size:26px; font-weight:800; color:var(--fcolor, var(--accent)); line-height:1; }
+.fstat-sub   { font-size:11px; color:var(--muted); margin-top:4px; }
 
-/* Category select styled to match other inputs */
+/* ── Main table tweaks ── */
+.stock-val { color:var(--accent2); font-weight:600; }
+.due-badge {
+  display:inline-block; padding:2px 8px; font-size:10px; letter-spacing:1px;
+  border-radius:2px; font-weight:600; text-transform:uppercase;
+}
+.due-zero    { background:rgba(94,240,138,.1);  color:var(--green); }
+.due-some    { background:rgba(255,94,94,.1);   color:var(--red); }
+.due-partial { background:rgba(232,197,71,.1);  color:var(--accent); }
+.overdue-flag { color:var(--red); font-size:10px; letter-spacing:1px; }
+
+/* ── Finance drawer ── */
+.finance-row { display:none; }
+.finance-row.open { display:table-row; }
+.finance-inner {
+  background: #0a0c0f;
+  border-top: 1px solid var(--border);
+  padding: 0;
+}
+.fin-tabs {
+  display:flex; border-bottom:1px solid var(--border);
+  padding: 0 20px;
+}
+.fin-tab {
+  padding: 12px 18px;
+  font-size:11px; letter-spacing:1.5px; text-transform:uppercase;
+  color:var(--muted); cursor:pointer; border-bottom:2px solid transparent;
+  transition:all .15s; user-select:none;
+}
+.fin-tab.active { color:var(--accent2); border-bottom-color:var(--accent2); }
+.fin-panel { display:none; padding:18px 20px; }
+.fin-panel.active { display:block; }
+
+/* ── Purchases mini-table ── */
+.mini-tbl { width:100%; border-collapse:collapse; font-size:12px; }
+.mini-tbl th {
+  font-family:var(--font-head); font-size:11px; letter-spacing:1.5px; text-transform:uppercase;
+  color:var(--muted); padding:8px 12px; text-align:left;
+  border-bottom:1px solid var(--border);
+}
+.mini-tbl td { padding:10px 12px; border-bottom:1px solid rgba(31,36,48,.6); color:var(--text); vertical-align:middle; }
+.mini-tbl tr:last-child td { border-bottom:none; }
+.mini-tbl tr:hover { background:rgba(79,209,197,.03); }
+
+/* progress bar */
+.pay-bar { width:100%; height:6px; background:var(--border); border-radius:2px; overflow:hidden; margin-top:4px; }
+.pay-fill { height:100%; border-radius:2px; background:var(--green); transition:width .4s; }
+
+/* status pill */
+.spill {
+  display:inline-block; padding:2px 8px; font-size:10px; letter-spacing:1px;
+  border-radius:2px; font-weight:600; text-transform:uppercase;
+}
+.spill-paid    { background:rgba(94,240,138,.12); color:var(--green); }
+.spill-partial { background:rgba(232,197,71,.12);  color:var(--accent); }
+.spill-unpaid  { background:rgba(255,94,94,.12);   color:var(--red); }
+.spill-overdue { background:rgba(255,94,94,.2); color:var(--red); border:1px solid var(--red); }
+
+/* finance summary cards inside drawer */
+.fin-summary {
+  display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:18px;
+}
+.fin-scard {
+  background:var(--surface); border:1px solid var(--border);
+  padding:12px 16px; border-radius:2px;
+}
+.fin-scard-label { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); }
+.fin-scard-val   { font-family:var(--font-head); font-size:22px; font-weight:800; margin-top:4px; }
+
+/* stock inner panel */
+.stock-grid {
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr)); gap:10px;
+}
+.stock-card {
+  background:var(--surface); border:1px solid var(--border);
+  padding:12px 14px; border-left:3px solid var(--accent2);
+}
+.stock-card .sc-name { font-weight:600; font-size:13px; margin-bottom:4px; }
+.stock-card .sc-sku  { font-size:10px; color:var(--accent); letter-spacing:1px; }
+.stock-card .sc-val  { font-size:12px; color:var(--muted); margin-top:6px; }
+.stock-card .sc-val span { color:var(--text); }
+
+/* modal overrides */
+.modal-wide { width:540px !important; max-width:96vw; }
+.form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+/* pay-now button in table */
+.pay-now-btn {
+  font-size:10px; padding:4px 10px; letter-spacing:.8px;
+  background:rgba(94,240,138,.12); color:var(--green);
+  border:1px solid rgba(94,240,138,.3); border-radius:2px; cursor:pointer;
+  transition:all .15s; font-family:var(--font-mono);
+}
+.pay-now-btn:hover { background:var(--green); color:#0d0f12; }
+
+.toggle-fin-btn {
+  background:none; border:none; cursor:pointer; color:var(--muted);
+  font-size:13px; padding:2px 6px; border-radius:4px; transition:color .15s;
+}
+.toggle-fin-btn:hover { color:var(--accent2); }
+
+.action-btns { display:flex; gap:6px; flex-wrap:wrap; }
 select.form-control {
-  width: 100%;
-  padding: 8px 12px;
-  background: var(--surface, #1a1a1a);
-  color: var(--fg, #eee);
-  border: 1px solid var(--border, #333);
-  border-radius: 6px;
-  font-size: 13px;
-  appearance: none;
-  -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  cursor: pointer;
-  transition: border-color 0.15s;
+  width:100%; padding:10px 14px; background:var(--bg); border:1px solid var(--border);
+  border-radius:2px; color:var(--text); font-family:var(--font-mono); font-size:13px;
+  outline:none; transition:border-color .15s; appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 14px center;
 }
-select.form-control:focus {
-  outline: none;
-  border-color: var(--accent, #facc15);
-}
-select.form-control option {
-  background: var(--surface, #1a1a1a);
-  color: var(--fg, #eee);
-}
+select.form-control:focus { border-color:var(--accent); }
+select.form-control option { background:var(--bg); color:var(--text); }
 </style>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}{% for cat,msg in messages %}<div class="flash-msg {{ cat }}">{{ msg }}</div>{% endfor %}{% endif %}
+{% endwith %}
 
 <div class="topbar">
   <h1>SUPPLIERS</h1>
@@ -120,6 +154,41 @@ select.form-control option {
 </div>
 
 <div class="content">
+
+  <!-- Global Finance Strip -->
+  {% set total_due    = suppliers | sum(attribute='total_due') %}
+  {% set total_billed = suppliers | sum(attribute='total_billed') %}
+  {% set total_paid   = suppliers | sum(attribute='total_paid') %}
+  {% set total_sv     = suppliers | sum(attribute='stock_value') %}
+  <div class="finance-strip">
+    <div class="fstat" style="--fcolor:var(--accent2)">
+      <div class="fstat-label">Total Suppliers</div>
+      <div class="fstat-value">{{ suppliers|length }}</div>
+      <div class="fstat-sub">active accounts</div>
+    </div>
+    <div class="fstat" style="--fcolor:var(--accent)">
+      <div class="fstat-label">Stock Value</div>
+      <div class="fstat-value">₹{{ "%.0f"|format(total_sv) }}</div>
+      <div class="fstat-sub">across all suppliers</div>
+    </div>
+    <div class="fstat" style="--fcolor:var(--blue)">
+      <div class="fstat-label">Total Billed</div>
+      <div class="fstat-value">₹{{ "%.0f"|format(total_billed) }}</div>
+      <div class="fstat-sub">credit purchases</div>
+    </div>
+    <div class="fstat" style="--fcolor:var(--green)">
+      <div class="fstat-label">Total Paid</div>
+      <div class="fstat-value">₹{{ "%.0f"|format(total_paid) }}</div>
+      <div class="fstat-sub">payments made</div>
+    </div>
+    <div class="fstat" style="--fcolor:var(--red)">
+      <div class="fstat-label">Outstanding Due</div>
+      <div class="fstat-value">₹{{ "%.0f"|format(total_due) }}</div>
+      <div class="fstat-sub">balance payable</div>
+    </div>
+  </div>
+
+  <!-- Main Table -->
   <div class="table-wrap">
     <table>
       <thead>
@@ -127,8 +196,11 @@ select.form-control option {
           <th></th>
           <th>Supplier</th>
           <th>Contact</th>
-          <th>Email</th>
-          <th>Items Supplied</th>
+          <th>Items</th>
+          <th>Stock Value</th>
+          <th>Billed</th>
+          <th>Paid</th>
+          <th>Due</th>
           <th>Added</th>
           <th>Actions</th>
         </tr>
@@ -137,56 +209,73 @@ select.form-control option {
         {% for s in suppliers %}
         <tr>
           <td style="width:32px">
-            <button class="toggle-btn" id="toggle-{{ s.id }}"
-              onclick="toggleProducts({{ s.id }})">▶</button>
+            <button class="toggle-fin-btn" id="toggle-{{ s.id }}"
+              onclick="toggleFinance({{ s.id }})">▶</button>
           </td>
-          <td><strong>{{ s.supplier_name }}</strong></td>
-          <td>{{ s.contact or '—' }}</td>
-          <td>{{ s.email or '—' }}</td>
+          <td>
+            <strong>{{ s.supplier_name }}</strong>
+            {% if s.overdue_count and s.overdue_count > 0 %}
+              <div class="overdue-flag">⚠ {{ s.overdue_count }} overdue</div>
+            {% endif %}
+          </td>
+          <td style="font-size:12px">
+            {{ s.contact or '—' }}<br>
+            <span style="color:var(--muted)">{{ s.email or '' }}</span>
+          </td>
           <td>
             <span class="{{ 'stock-low' if (s.supplied_products or 0) < 3 else 'stock-ok' }}">
               {{ s.supplied_products or 0 }}
             </span>
+            <div style="font-size:10px;color:var(--muted)">{{ s.total_units }} units</div>
           </td>
-          <td style="color:var(--muted);font-size:12px">
-            {{ s.created_at.strftime('%d %b %Y') if s.created_at else '—' }}
+          <td class="stock-val">₹{{ "%.2f"|format(s.stock_value) }}</td>
+          <td style="color:var(--blue)">
+            {% if s.total_billed > 0 %}₹{{ "%.2f"|format(s.total_billed) }}{% else %}—{% endif %}
+          </td>
+          <td style="color:var(--green)">
+            {% if s.total_paid > 0 %}₹{{ "%.2f"|format(s.total_paid) }}{% else %}—{% endif %}
           </td>
           <td>
+            {% if s.total_due > 0 %}
+              <span class="due-badge due-some">₹{{ "%.2f"|format(s.total_due) }}</span>
+            {% else %}
+              <span class="due-badge due-zero">Clear</span>
+            {% endif %}
+          </td>
+          <td style="color:var(--muted);font-size:12px">{{ s.created_at_str }}</td>
+          <td>
             <div class="action-btns">
-              <!-- View Products button -->
               <button class="btn btn-ghost action-btn"
                 onclick="openViewProductsModal({{ s.id }}, '{{ s.supplier_name|e }}')">
-                ⊞ View Products
+                ⊞ Products
               </button>
-              <!-- Add Item button -->
-              <button class="btn btn-yellow action-btn"
-                onclick="openAddItemModal({{ s.id }}, '{{ s.supplier_name|e }}')">
-                ＋ Add Item
+              <button class="btn action-btn" style="background:rgba(232,197,71,.15);color:var(--accent);border:1px solid rgba(232,197,71,.35);"
+                onclick="openPurchaseModal({{ s.id }}, '{{ s.supplier_name|e }}')">
+                🛒 Purchase
               </button>
-              <!-- Edit Supplier -->
               <button class="btn action-btn" style="background:#1e3a5f;color:#5ea9ff;"
-                onclick="openEditSupplierModal({{ s.id }}, '{{ s.supplier_name|e }}', '{{ s.contact|default('', true)|e }}', '{{ s.email|default('', true)|e }}')">
+                onclick="openEditSupplierModal({{ s.id }}, '{{ s.supplier_name|e }}', '{{ s.contact|default('',true)|e }}', '{{ s.email|default('',true)|e }}')">
                 ✎ Edit
               </button>
-              <!-- Delete Supplier -->
               <button class="btn btn-red action-btn"
                 onclick="openDeleteSupplierModal({{ s.id }}, '{{ s.supplier_name|e }}')">
-                ✕ Delete
+                ✕
               </button>
             </div>
           </td>
         </tr>
-        <!-- Expandable sub-row for this supplier's products -->
-        <tr class="supplier-products-row" id="products-row-{{ s.id }}">
-          <td colspan="7" style="padding:0;border-bottom:2px solid var(--border,#2a2a2a)">
-            <div class="products-inner" id="products-content-{{ s.id }}">
-              <div class="empty-inner">Loading…</div>
+
+        <!-- ── Finance Drawer Row ── -->
+        <tr class="finance-row" id="finance-row-{{ s.id }}">
+          <td colspan="10" style="padding:0; border-bottom:2px solid var(--border)">
+            <div class="finance-inner" id="finance-content-{{ s.id }}">
+              <div style="padding:20px;text-align:center;color:var(--muted)">Loading…</div>
             </div>
           </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="7" style="text-align:center;color:var(--muted);padding:40px;">
+          <td colspan="10" style="text-align:center;color:var(--muted);padding:40px;">
             No suppliers found. Add one to get started.
           </td>
         </tr>
@@ -196,24 +285,22 @@ select.form-control option {
   </div>
 </div>
 
-<!-- ── ADD SUPPLIER MODAL ── -->
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     MODALS
+═══════════════════════════════════════════════════════════════════════════ -->
+
+<!-- ADD SUPPLIER -->
 <div class="modal-overlay" id="add-supplier-modal">
   <div class="modal">
     <button class="close-modal" onclick="closeModal('add-supplier-modal')">×</button>
     <h2>ADD SUPPLIER</h2>
     <form method="POST" action="{{ url_for('add_supplier') }}">
-      <div class="form-group">
-        <label>Supplier Name</label>
-        <input type="text" name="supplier_name" required placeholder="e.g. Acme Distributors"/>
-      </div>
-      <div class="form-group">
-        <label>Contact Number</label>
-        <input type="text" name="contact" placeholder="+91 98765 43210"/>
-      </div>
-      <div class="form-group">
-        <label>Email Address</label>
-        <input type="email" name="email" placeholder="supplier@example.com"/>
-      </div>
+      <div class="form-group"><label>Supplier Name</label>
+        <input type="text" name="supplier_name" required placeholder="e.g. Acme Distributors"/></div>
+      <div class="form-group"><label>Contact Number</label>
+        <input type="text" name="contact" placeholder="+91 98765 43210"/></div>
+      <div class="form-group"><label>Email Address</label>
+        <input type="email" name="email" placeholder="supplier@example.com"/></div>
       <div class="modal-actions">
         <button type="submit" class="btn btn-yellow">Add Supplier</button>
         <button type="button" class="btn btn-ghost" onclick="closeModal('add-supplier-modal')">Cancel</button>
@@ -222,52 +309,395 @@ select.form-control option {
   </div>
 </div>
 
-<!-- ── ADD ITEM TO SUPPLIER MODAL ── -->
-<div class="modal-overlay" id="add-item-modal">
-  <div class="modal">
-    <button class="close-modal" onclick="closeModal('add-item-modal')">×</button>
-    <h2>ADD ITEM</h2>
-    <p id="add-item-supplier-label" style="font-size:12px;color:var(--muted);margin-bottom:20px;"></p>
-    <form method="POST" action="{{ url_for('add_product_to_supplier') }}">
-      <input type="hidden" name="supplier_id" id="add-item-supplier-id"/>
-      <div class="form-group">
-        <label>SKU</label>
-        <input type="text" name="sku" placeholder="Leave empty for auto SKU"/>
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     INTEGRATED PURCHASE MODAL  (Existing Products / New Product / Payment)
+═══════════════════════════════════════════════════════════════════════════ -->
+<style>
+/* ── 3-tab strip ── */
+.pur-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin: -32px -32px 24px;   /* bleed to modal edges */
+  padding: 0 32px;
+}
+.pur-tab {
+  padding: 14px 20px;
+  font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--muted); cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all .15s; user-select: none; white-space: nowrap;
+}
+.pur-tab:hover { color: var(--text); }
+.pur-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.pur-tab.active.tab-pay { color: var(--green); border-bottom-color: var(--green); }
+.pur-panel { display: none; }
+.pur-panel.active { display: block; }
+
+/* ── Existing products grid ── */
+.exist-product-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  margin-bottom: 8px;
+  background: var(--bg);
+  transition: border-color .15s;
+}
+.exist-product-row:hover { border-color: var(--accent2); }
+.ep-info .ep-name { font-size: 13px; font-weight: 600; }
+.ep-info .ep-meta { font-size: 10px; color: var(--muted); letter-spacing: .5px; margin-top: 2px; }
+.ep-stock-badge {
+  font-size: 11px; padding: 3px 8px; border-radius: 2px;
+  font-weight: 600; white-space: nowrap;
+}
+.ep-qty-input {
+  width: 80px; padding: 7px 10px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 2px; color: var(--text); font-family: var(--font-mono);
+  font-size: 13px; outline: none; text-align: center;
+  transition: border-color .15s;
+}
+.ep-qty-input:focus { border-color: var(--accent); }
+.ep-qty-input:not([value=""]):not([value="0"]) { border-color: var(--accent2); }
+
+/* ── Price preview strip ── */
+.price-strip {
+  display: flex; gap: 20px; align-items: center; flex-wrap: wrap;
+  background: rgba(232,197,71,.06); border: 1px solid rgba(232,197,71,.2);
+  border-radius: 2px; padding: 10px 14px; margin-bottom: 14px;
+}
+.ps-item { text-align: center; }
+.ps-label { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+.ps-val   { font-family: var(--font-head); font-size: 20px; font-weight: 800; margin-top: 2px; }
+
+/* ── Credit summary in purchase forms ── */
+.credit-inline {
+  background: rgba(94,169,255,.06); border: 1px solid rgba(94,169,255,.2);
+  border-radius: 2px; padding: 12px 14px; margin-bottom: 14px;
+}
+.credit-inline-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.credit-inline-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.ci-field { flex: 1; min-width: 130px; }
+.ci-field label { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 4px; }
+.ci-field input, .ci-field select {
+  width: 100%; padding: 8px 10px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 2px;
+  color: var(--text); font-family: var(--font-mono); font-size: 12px; outline: none;
+  transition: border-color .15s;
+}
+.ci-field input:focus, .ci-field select:focus { border-color: var(--accent); }
+
+/* ── Balance preview ── */
+.bal-preview {
+  background: rgba(255,94,94,.08); border: 1px solid rgba(255,94,94,.2);
+  border-radius: 2px; padding: 10px 14px; margin-top: 10px; display: none;
+}
+.bal-preview-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+.bal-preview-val   { font-family: var(--font-head); font-size: 26px; font-weight: 800; color: var(--red); }
+
+/* ── Pay tab styles ── */
+.pay-due-hero {
+  text-align: center; padding: 18px;
+  background: rgba(255,94,94,.07); border: 1px solid rgba(255,94,94,.2);
+  border-radius: 2px; margin-bottom: 16px;
+}
+.pay-due-hero .pval {
+  font-family: var(--font-head); font-size: 40px; font-weight: 800; color: var(--red);
+}
+.pay-due-hero .psub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.pay-bills-list { max-height: 160px; overflow-y: auto; border: 1px solid var(--border); border-radius: 2px; margin-bottom: 14px; }
+.pay-remaining-strip {
+  display: flex; gap: 14px; align-items: center;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 2px; padding: 10px 14px; margin-bottom: 14px;
+}
+.prs-item { flex: 1; }
+.prs-label { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+.prs-val { font-family: var(--font-head); font-size: 22px; font-weight: 800; margin-top: 2px; }
+
+/* wide modal */
+.modal-xl { width: 680px !important; max-width: 96vw; }
+</style>
+
+<div class="modal-overlay" id="purchase-modal">
+  <div class="modal modal-xl" style="max-height:90vh;overflow-y:auto;">
+    <button class="close-modal" onclick="closeModal('purchase-modal')">×</button>
+
+    <!-- Header -->
+    <div style="margin-bottom:4px;">
+      <h2 id="pur-modal-title" style="display:inline;">PURCHASE</h2>
+      <span id="pur-supplier-badge" style="
+        display:inline-block; margin-left:10px; font-size:11px; letter-spacing:1.5px;
+        color:var(--accent2); background:rgba(79,209,197,.1); padding:3px 10px; border-radius:2px;
+      "></span>
+    </div>
+
+    <!-- 3-tab strip -->
+    <div class="pur-tabs">
+      <div class="pur-tab active" id="tab-existing" onclick="switchPurTab('existing')">▦ Existing Products</div>
+      <div class="pur-tab" id="tab-new"      onclick="switchPurTab('new')">＋ New Product</div>
+      <div class="pur-tab tab-pay" id="tab-pay" onclick="switchPurTab('pay')">₹ Record Payment</div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 1 — EXISTING PRODUCTS (restock + credit record)
+    ══════════════════════════════════════════════════════ -->
+    <div class="pur-panel active" id="panel-existing">
+      <p style="font-size:11px;color:var(--muted);margin-bottom:14px;letter-spacing:.5px;">
+        Enter qty purchased for each product. Stock will be updated and a credit purchase recorded.
+      </p>
+
+      <!-- Product list -->
+      <div id="exist-products-wrap" style="max-height:280px;overflow-y:auto;margin-bottom:16px;">
+        <div style="padding:20px;text-align:center;color:var(--muted);">Loading products…</div>
       </div>
-      <div class="form-group">
-        <label>Name</label>
-        <input type="text" name="name" required placeholder="Product name"/>
+
+      <!-- Order total -->
+      <div style="display:flex;justify-content:space-between;align-items:center;
+           padding:10px 14px;background:var(--surface);border:1px solid var(--border);
+           border-radius:2px;margin-bottom:14px;">
+        <span style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">Order Total (at cost)</span>
+        <span style="font-family:var(--font-head);font-size:24px;font-weight:800;color:var(--accent);" id="exist-order-total">₹0.00</span>
       </div>
+
+      <!-- Credit fields for existing products purchase -->
+      <div class="credit-inline">
+        <div class="credit-inline-label">Credit / Payment Details</div>
+        <div class="credit-inline-row">
+          <div class="ci-field">
+            <label>Invoice Ref</label>
+            <input type="text" id="exist-invoice-ref" placeholder="SUP-2026-001"/>
+          </div>
+          <div class="ci-field">
+            <label>Purchase Date</label>
+            <input type="date" id="exist-purchase-date"/>
+          </div>
+          <div class="ci-field">
+            <label>Due Date</label>
+            <input type="date" id="exist-due-date"/>
+          </div>
+        </div>
+        <div class="credit-inline-row" style="margin-top:10px;">
+          <div class="ci-field">
+            <label>Amount Paid Now (₹)</label>
+            <input type="number" id="exist-amount-paid" step="0.01" min="0" placeholder="0.00" value="0" oninput="updateExistBalance()"/>
+          </div>
+          <div class="ci-field">
+            <label>Note</label>
+            <input type="text" id="exist-note" placeholder="Optional note"/>
+          </div>
+        </div>
+        <div class="bal-preview" id="exist-bal-preview">
+          <div class="bal-preview-label">Balance Will Be Due</div>
+          <div class="bal-preview-val" id="exist-bal-val">₹0.00</div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-yellow" onclick="submitExistingPurchase()">✓ Confirm Purchase</button>
+        <button class="btn btn-ghost" onclick="closeModal('purchase-modal')">Cancel</button>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 2 — NEW PRODUCT
+    ══════════════════════════════════════════════════════ -->
+    <div class="pur-panel" id="panel-new">
+      <p style="font-size:11px;color:var(--muted);margin-bottom:16px;letter-spacing:.5px;">
+        Add a new product to inventory. Retail price is auto-set to cost +10%.
+      </p>
+
+      <form method="POST" action="{{ url_for('add_product_to_supplier') }}" id="new-product-form">
+        <input type="hidden" name="supplier_id" id="np-supplier-id"/>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Product Name</label>
+            <input type="text" name="name" required placeholder="Product name"/>
+          </div>
+          <div class="form-group">
+            <label>SKU <span style="color:var(--muted);font-size:10px;">(auto if blank)</span></label>
+            <input type="text" name="sku" placeholder="e.g. SKU-001"/>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Category</label>
+          <select name="category" id="np-category" class="form-control" required>
+            <option value="" disabled selected>Loading…</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Supplier Cost Price (₹)</label>
+            <input type="number" name="supplier_price" id="np-cost" required step="0.01" min="0.01"
+              placeholder="0.00" oninput="calcNpRetail()"/>
+            <div style="font-size:10px;color:var(--muted);margin-top:3px;">What you pay supplier</div>
+          </div>
+          <div class="form-group">
+            <label>Retail Price — Products Table (₹)</label>
+            <input type="number" name="price" id="np-retail" required step="0.01" min="0.01"
+              placeholder="0.00" oninput="checkNpRetail()"/>
+            <div style="font-size:10px;margin-top:3px;" id="np-markup-note" style="color:var(--accent);">Auto cost +10%</div>
+          </div>
+        </div>
+
+        <!-- Price strip -->
+        <div class="price-strip" id="np-price-strip" style="display:none;">
+          <div class="ps-item">
+            <div class="ps-label">Cost (Supplier)</div>
+            <div class="ps-val" style="color:var(--accent2);" id="np-ps-cost">₹0</div>
+          </div>
+          <div style="color:var(--muted);font-size:22px;align-self:center;">→</div>
+          <div class="ps-item">
+            <div class="ps-label">Retail (Products)</div>
+            <div class="ps-val" style="color:var(--accent);" id="np-ps-retail">₹0</div>
+          </div>
+          <div style="color:var(--muted);font-size:22px;align-self:center;">·</div>
+          <div class="ps-item">
+            <div class="ps-label">Margin</div>
+            <div class="ps-val" id="np-ps-margin">0%</div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Qty Purchased (Initial Stock)</label>
+          <input type="number" name="stock" id="np-qty" required min="1" placeholder="0"
+            oninput="calcNpTotal()"/>
+        </div>
+
+        <!-- Credit fields for new product -->
+        <div class="credit-inline">
+          <div class="credit-inline-label">Credit / Payment Details</div>
+          <div class="credit-inline-row">
+            <div class="ci-field">
+              <label>Invoice Ref</label>
+              <input type="text" name="invoice_ref" id="np-invoice-ref" placeholder="SUP-2026-001"/>
+            </div>
+            <div class="ci-field">
+              <label>Purchase Date</label>
+              <input type="date" name="purchase_date" id="np-purchase-date"/>
+            </div>
+            <div class="ci-field">
+              <label>Due Date</label>
+              <input type="date" name="due_date" id="np-due-date"/>
+            </div>
+          </div>
+          <div class="credit-inline-row" style="margin-top:10px;">
+            <div class="ci-field">
+              <label>Order Total (₹)</label>
+              <div style="padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:2px;
+                font-family:var(--font-head);font-size:16px;font-weight:800;color:var(--accent);" id="np-order-total">₹0.00</div>
+            </div>
+            <div class="ci-field">
+              <label>Amount Paid Now (₹)</label>
+              <input type="number" name="amount_paid" id="np-amount-paid" step="0.01" min="0"
+                placeholder="0.00" value="0" oninput="calcNpTotal()"/>
+            </div>
+            <div class="ci-field">
+              <label>Note</label>
+              <input type="text" name="note" id="np-note" placeholder="Optional"/>
+            </div>
+          </div>
+          <div class="bal-preview" id="np-bal-preview">
+            <div class="bal-preview-label">Balance Will Be Due</div>
+            <div class="bal-preview-val" id="np-bal-val">₹0.00</div>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-yellow">＋ Add Product & Record Purchase</button>
+          <button type="button" class="btn btn-ghost" onclick="closeModal('purchase-modal')">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 3 — RECORD PAYMENT
+    ══════════════════════════════════════════════════════ -->
+    <div class="pur-panel" id="panel-pay">
+      <!-- Total due hero -->
+      <div class="pay-due-hero">
+        <div class="psub">Total Outstanding Balance</div>
+        <div class="pval" id="pay-total-due">₹0.00</div>
+        <div class="psub" id="pay-bills-count"></div>
+      </div>
+
+      <!-- Unpaid bills table -->
+      <div class="pay-bills-list" id="pay-bills-list">
+        <div style="padding:14px;text-align:center;color:var(--muted);font-size:12px;">Loading…</div>
+      </div>
+
+      <!-- Amount + remaining -->
+      <div class="pay-remaining-strip">
+        <div class="prs-item">
+          <div class="prs-label">Pay Amount (₹)</div>
+          <input type="number" id="pay-amount-input" step="0.01" min="0.01" placeholder="0.00"
+            style="width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--border);
+              border-radius:2px;color:var(--text);font-family:var(--font-head);font-size:20px;
+              font-weight:800;outline:none;"
+            oninput="updatePayRemaining()"/>
+        </div>
+        <div style="color:var(--muted);font-size:20px;align-self:center;padding-top:14px;">→</div>
+        <div class="prs-item">
+          <div class="prs-label">Remaining After</div>
+          <div class="prs-val" id="pay-remaining" style="color:var(--muted);">—</div>
+        </div>
+      </div>
+
       <div class="form-group">
-        <label>Category</label>
-        <select name="category" id="add-item-category" class="form-control" required>
-          <option value="" disabled selected>Loading categories…</option>
+        <label style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:6px;">Apply To</label>
+        <select id="pay-apply-select" class="form-control" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);font-size:12px;padding:8px 12px;width:100%;border-radius:2px;">
+          <option value="__all__">Distribute across all unpaid bills (oldest first)</option>
         </select>
       </div>
-      <div class="form-group">
-        <label>Price</label>
-        <input type="number" name="price" required step="0.01" min="0" placeholder="0.00"/>
+      <div class="form-group" style="margin-top:12px;">
+        <label style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:6px;">Payment Note</label>
+        <input type="text" id="pay-note-input" placeholder="e.g. Bank transfer NEFT"
+          style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--border);
+            border-radius:2px;color:var(--text);font-family:var(--font-mono);font-size:13px;outline:none;"/>
       </div>
-      <div class="form-group">
-        <label>Initial Stock</label>
-        <input type="number" name="stock" required min="0" placeholder="0"/>
-      </div>
+
       <div class="modal-actions">
-        <button type="submit" class="btn btn-yellow">Add Item</button>
-        <button type="button" class="btn btn-ghost" onclick="closeModal('add-item-modal')">Cancel</button>
+        <button class="btn btn-green" onclick="submitPaymentTab()">✓ Confirm Payment</button>
+        <button class="btn btn-ghost" onclick="closeModal('purchase-modal')">Cancel</button>
       </div>
-    </form>
+    </div>
   </div>
 </div>
 
-<!-- ── VIEW PRODUCTS MODAL ── -->
-<div class="modal-overlay" id="view-products-modal">
+<!-- ── PAY NOW MODAL ── -->
+<div class="modal-overlay" id="pay-modal">
   <div class="modal">
+    <button class="close-modal" onclick="closeModal('pay-modal')">×</button>
+    <h2>RECORD PAYMENT</h2>
+    <div id="pay-purchase-info" style="
+      background:var(--surface); border:1px solid var(--border);
+      padding:12px 16px; border-radius:2px; margin-bottom:20px; font-size:13px;">
+    </div>
+    <div class="form-group"><label>Payment Amount (₹)</label>
+      <input type="number" id="pay-amount" step="0.01" min="0.01" placeholder="0.00" required/></div>
+    <div class="form-group"><label>Note</label>
+      <input type="text" id="pay-note" placeholder="e.g. Transferred via NEFT"/></div>
+    <div class="modal-actions">
+      <button class="btn btn-green" onclick="submitPayment()">✓ Confirm Payment</button>
+      <button type="button" class="btn btn-ghost" onclick="closeModal('pay-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- VIEW PRODUCTS MODAL -->
+<div class="modal-overlay" id="view-products-modal">
+  <div class="modal modal-wide">
     <button class="close-modal" onclick="closeModal('view-products-modal')">×</button>
     <h2 id="view-products-title">PRODUCTS</h2>
-    <p class="modal-subtitle" id="view-products-subtitle"></p>
-    <div class="products-inner" id="view-products-content">
-      <div class="empty-inner">Loading…</div>
+    <p class="modal-subtitle" id="view-products-subtitle" style="font-size:12px;color:var(--muted);margin-bottom:16px;"></p>
+    <div id="view-products-content" style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:2px;">
+      <div style="padding:20px;text-align:center;color:var(--muted)">Loading…</div>
     </div>
     <div class="modal-actions" style="margin-top:18px;">
       <button type="button" class="btn btn-ghost" onclick="closeModal('view-products-modal')">Close</button>
@@ -275,25 +705,19 @@ select.form-control option {
   </div>
 </div>
 
-<!-- ── EDIT SUPPLIER MODAL ── -->
+<!-- EDIT SUPPLIER -->
 <div class="modal-overlay" id="edit-supplier-modal">
   <div class="modal">
     <button class="close-modal" onclick="closeModal('edit-supplier-modal')">×</button>
     <h2>EDIT SUPPLIER</h2>
     <form method="POST" action="{{ url_for('edit_supplier') }}">
       <input type="hidden" name="supplier_id" id="edit-supplier-id"/>
-      <div class="form-group">
-        <label>Supplier Name</label>
-        <input type="text" name="supplier_name" id="edit-supplier-name" required/>
-      </div>
-      <div class="form-group">
-        <label>Contact Number</label>
-        <input type="text" name="contact" id="edit-supplier-contact"/>
-      </div>
-      <div class="form-group">
-        <label>Email Address</label>
-        <input type="email" name="email" id="edit-supplier-email"/>
-      </div>
+      <div class="form-group"><label>Supplier Name</label>
+        <input type="text" name="supplier_name" id="edit-supplier-name" required/></div>
+      <div class="form-group"><label>Contact Number</label>
+        <input type="text" name="contact" id="edit-supplier-contact"/></div>
+      <div class="form-group"><label>Email Address</label>
+        <input type="email" name="email" id="edit-supplier-email"/></div>
       <div class="modal-actions">
         <button type="submit" class="btn btn-blue">Save Changes</button>
         <button type="button" class="btn btn-ghost" onclick="closeModal('edit-supplier-modal')">Cancel</button>
@@ -302,14 +726,14 @@ select.form-control option {
   </div>
 </div>
 
-<!-- ── DELETE SUPPLIER MODAL ── -->
+<!-- DELETE SUPPLIER -->
 <div class="modal-overlay" id="delete-supplier-modal">
   <div class="modal">
     <button class="close-modal" onclick="closeModal('delete-supplier-modal')">×</button>
     <h2 style="color:var(--red)">DELETE SUPPLIER</h2>
     <p id="delete-supplier-info" style="font-size:13px;color:var(--text);margin-bottom:8px;"></p>
     <p style="font-size:12px;color:var(--muted);margin-bottom:24px;">
-      The supplier will be removed. Their products will remain in inventory but will be <strong>unassigned</strong>.
+      Products will remain in inventory but will be <strong>unassigned</strong>. All credit purchase records will also be deleted.
     </p>
     <form method="POST" action="{{ url_for('delete_supplier') }}">
       <input type="hidden" name="supplier_id" id="delete-supplier-id"/>
@@ -321,154 +745,514 @@ select.form-control option {
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     JAVASCRIPT
+═══════════════════════════════════════════════════════════════════════════ -->
 <script>
+// ── Modal helpers ─────────────────────────────────────────────────────────────
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
-
-document.querySelectorAll('.modal-overlay').forEach(overlay => {
-  overlay.addEventListener('click', function(e) {
-    if (e.target === this) this.classList.remove('open');
-  });
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
 });
 
-/* ── Category dropdown ── */
-let categoriesCache = null;
-
-function loadCategories() {
-  if (categoriesCache !== null) {
-    populateCategoryDropdown(categoriesCache);
-    return;
-  }
-  fetch('/get_categories')
-    .then(r => r.json())
-    .then(cats => {
-      categoriesCache = cats;
-      populateCategoryDropdown(cats);
-    })
-    .catch(() => {
-      const sel = document.getElementById('add-item-category');
-      sel.innerHTML = '<option value="" disabled selected>Failed to load</option>' +
-                      '<option value="__other__">Other (type manually)</option>';
-    });
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function showToast(msg, type='success') {
+  const t = document.createElement('div');
+  t.className = `flash ${type}`;
+  t.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;min-width:260px;animation:fadein .3s ease;';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity .5s'; setTimeout(()=>t.remove(),500); }, 3500);
 }
 
-function populateCategoryDropdown(cats) {
-  const sel = document.getElementById('add-item-category');
-  let html = '<option value="" disabled selected>Select category…</option>';
-  cats.forEach(c => {
-    html += `<option value="${c}">${c}</option>`;
+// ═══════════════════════════════════════════════════════════════════════════
+//  INTEGRATED PURCHASE MODAL
+// ═══════════════════════════════════════════════════════════════════════════
+let purSupplierId   = null;
+let purSupplierName = '';
+let purProducts     = [];     // existing products from this supplier
+let purUnpaidBills  = [];     // unpaid purchases for payment tab
+
+function openPurchaseModal(id, name) {
+  purSupplierId   = id;
+  purSupplierName = name;
+  document.getElementById('pur-modal-title').textContent  = 'PURCHASE';
+  document.getElementById('pur-supplier-badge').textContent = name;
+
+  // Set today's date on all date fields
+  const today = new Date().toISOString().split('T')[0];
+  ['exist-purchase-date','exist-due-date','np-purchase-date','np-due-date'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = today;
   });
-  html += '<option value="__new__">＋ New category…</option>';
-  sel.innerHTML = html;
 
-  // If user picks "New category", swap to a text input
-  sel.onchange = function() {
-    if (this.value === '__new__') {
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.name = 'category';
-      input.required = true;
-      input.placeholder = 'Enter new category name';
-      input.className = this.className; // inherit styling
-      this.parentNode.replaceChild(input, this);
-      input.focus();
-    }
-  };
+  // Reset forms
+  ['exist-invoice-ref','exist-amount-paid','exist-note'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = el.type==='number' ? '0' : '';
+  });
+  document.getElementById('exist-order-total').textContent = '₹0.00';
+  document.getElementById('exist-bal-preview').style.display = 'none';
+  document.getElementById('np-supplier-id').value = id;
+
+  switchPurTab('existing');
+  openModal('purchase-modal');
+  loadExistingProducts(id);
+  loadCategoryDropdown();
 }
 
-/* ── Add Item modal ── */
-function openAddItemModal(supplierId, supplierName) {
-  document.getElementById('add-item-supplier-id').value = supplierId;
-  document.getElementById('add-item-supplier-label').textContent = 'Supplier: ' + supplierName;
-  loadCategories();
-  openModal('add-item-modal');
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchPurTab(tab) {
+  ['existing','new','pay'].forEach(t => {
+    document.getElementById('tab-'+t).classList.toggle('active', t===tab);
+    document.getElementById('panel-'+t).classList.toggle('active', t===tab);
+  });
+  if (tab === 'pay' && purSupplierId) loadPayTab(purSupplierId);
 }
 
-/* ── View Products modal ── */
-function openViewProductsModal(supplierId, supplierName) {
-  document.getElementById('view-products-title').textContent = supplierName.toUpperCase();
-  document.getElementById('view-products-subtitle').textContent = 'All products supplied by ' + supplierName;
-  document.getElementById('view-products-content').innerHTML = '<div class="empty-inner">Loading…</div>';
-  openModal('view-products-modal');
+// ─────────────────────────────────────────────────────────────────────────────
+//  TAB 1 — EXISTING PRODUCTS
+// ─────────────────────────────────────────────────────────────────────────────
+function loadExistingProducts(supplierId) {
+  const wrap = document.getElementById('exist-products-wrap');
+  wrap.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);">Loading products…</div>';
 
   fetch('/supplier/' + supplierId + '/products')
     .then(r => r.json())
     .then(data => {
-      const products = data.products;
-      const content  = document.getElementById('view-products-content');
-      if (!products || products.length === 0) {
-        content.innerHTML = '<div class="empty-inner">No products linked to this supplier yet.</div>';
+      purProducts = data.products || [];
+      if (!purProducts.length) {
+        wrap.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px;">No products linked to this supplier yet. Use the <strong>New Product</strong> tab to add one.</div>';
         return;
       }
-      const rows = products.map(p => `
-        <tr>
-          <td><span class="sku-tag">${p.sku}</span></td>
-          <td>${p.name}</td>
-          <td>${p.category}</td>
-          <td>₹${p.price.toFixed(2)}</td>
-          <td><span class="${p.stock < 10 ? 'stock-low' : 'stock-ok'}">${p.stock}</span></td>
-        </tr>`).join('');
-      content.innerHTML = `
-        <table>
-          <thead>
-            <tr>
-              <th>SKU</th><th>Name</th><th>Category</th><th>Price</th><th>Stock</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>`;
+      wrap.innerHTML = purProducts.map((p, i) => `
+        <div class="exist-product-row" id="ep-row-${i}">
+          <div class="ep-info">
+            <div class="ep-name">${p.name}</div>
+            <div class="ep-meta">
+              <span style="color:var(--accent);letter-spacing:1px;">${p.sku}</span>
+              &nbsp;·&nbsp; Cost: ₹${p.price.toFixed(2)}
+              &nbsp;·&nbsp; Category: ${p.category}
+            </div>
+          </div>
+          <span class="ep-stock-badge ${p.stock < 10 ? 'stock-low' : 'stock-ok'}" style="background:${p.stock < 10 ? 'rgba(255,94,94,.1)' : 'rgba(94,240,138,.1)'};">
+            ${p.stock} in stock
+          </span>
+          <input type="number" class="ep-qty-input" id="ep-qty-${i}"
+            min="0" placeholder="Qty"
+            data-sku="${p.sku}" data-cost="${p.price}"
+            oninput="updateExistTotal()" value=""/>
+        </div>`).join('');
+      updateExistTotal();
     })
     .catch(() => {
-      document.getElementById('view-products-content').innerHTML =
-        '<div class="empty-inner" style="color:#f87171">Failed to load products. Please try again.</div>';
+      wrap.innerHTML = '<div style="padding:16px;text-align:center;color:var(--red);">Failed to load. Try again.</div>';
     });
 }
 
-/* ── Inline expand row (toggle arrow) ── */
-function toggleProducts(id) {
-  const row    = document.getElementById('products-row-' + id);
-  const btn    = document.getElementById('toggle-' + id);
+function updateExistTotal() {
+  let total = 0;
+  purProducts.forEach((p, i) => {
+    const qty = parseInt(document.getElementById('ep-qty-'+i)?.value) || 0;
+    total += qty * p.price;
+  });
+  document.getElementById('exist-order-total').textContent = '₹' + total.toFixed(2);
+  updateExistBalance();
+}
+
+function updateExistBalance() {
+  const total = parseFloat(document.getElementById('exist-order-total').textContent.replace('₹','')) || 0;
+  const paid  = parseFloat(document.getElementById('exist-amount-paid').value) || 0;
+  const bal   = Math.max(0, total - paid);
+  const prev  = document.getElementById('exist-bal-preview');
+  if (total > 0 && bal > 0) {
+    prev.style.display = 'block';
+    document.getElementById('exist-bal-val').textContent = '₹' + bal.toFixed(2);
+  } else {
+    prev.style.display = 'none';
+  }
+}
+
+function submitExistingPurchase() {
+  // Build items list: only rows with qty > 0
+  const items = [];
+  let total = 0;
+  purProducts.forEach((p, i) => {
+    const qty = parseInt(document.getElementById('ep-qty-'+i)?.value) || 0;
+    if (qty > 0) { items.push({ sku: p.sku, qty, cost: p.price }); total += qty * p.price; }
+  });
+
+  if (!items.length) { showToast('Enter qty for at least one product.', 'error'); return; }
+
+  const invoiceRef  = document.getElementById('exist-invoice-ref').value;
+  const purDate     = document.getElementById('exist-purchase-date').value;
+  const dueDate     = document.getElementById('exist-due-date').value;
+  const amtPaid     = parseFloat(document.getElementById('exist-amount-paid').value) || 0;
+  const note        = document.getElementById('exist-note').value;
+
+  fetch(`/supplier/${purSupplierId}/purchase/existing`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ items, invoice_ref: invoiceRef, purchase_date: purDate,
+      due_date: dueDate, amount_paid: amtPaid, total_amount: total, note })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      closeModal('purchase-modal');
+      showToast(`Purchase recorded! ${items.length} product(s) restocked.`, 'success');
+      setTimeout(() => location.reload(), 1600);
+    } else {
+      showToast(data.error || 'Error recording purchase.', 'error');
+    }
+  })
+  .catch(() => showToast('Network error. Please try again.', 'error'));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  TAB 2 — NEW PRODUCT
+// ─────────────────────────────────────────────────────────────────────────────
+let categoriesCache = null;
+function loadCategoryDropdown() {
+  const sel = document.getElementById('np-category');
+  if (categoriesCache) { populateCats(sel, categoriesCache); return; }
+  fetch('/get_categories').then(r => r.json()).then(cats => {
+    categoriesCache = cats; populateCats(sel, cats);
+  }).catch(() => { sel.innerHTML = '<option value="General">General</option>'; });
+}
+function populateCats(sel, cats) {
+  sel.innerHTML = '<option value="" disabled selected>Select category…</option>' +
+    cats.map(c => `<option value="${c}">${c}</option>`).join('') +
+    '<option value="__new__">＋ New category…</option>';
+  sel.onchange = function() {
+    if (this.value === '__new__') {
+      const inp = document.createElement('input');
+      inp.type='text'; inp.name='category'; inp.required=true;
+      inp.placeholder='Enter new category name'; inp.className='form-control';
+      inp.style.cssText='width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:2px;color:var(--text);font-family:var(--font-mono);font-size:13px;outline:none;';
+      this.parentNode.replaceChild(inp, this); inp.focus();
+    }
+  };
+}
+
+function calcNpRetail() {
+  const cost   = parseFloat(document.getElementById('np-cost').value) || 0;
+  const retail = cost > 0 ? +(cost * 1.10).toFixed(2) : 0;
+  document.getElementById('np-retail').value = retail > 0 ? retail : '';
+  document.getElementById('np-markup-note').textContent = 'Auto cost +10%';
+  document.getElementById('np-markup-note').style.color = 'var(--accent)';
+  updateNpPriceStrip(); calcNpTotal();
+}
+function checkNpRetail() {
+  const cost   = parseFloat(document.getElementById('np-cost').value) || 0;
+  const retail = parseFloat(document.getElementById('np-retail').value) || 0;
+  const note   = document.getElementById('np-markup-note');
+  if (cost > 0 && retail > 0) {
+    const pct = ((retail - cost) / cost * 100).toFixed(1);
+    if (retail < cost) { note.textContent = '⚠ Below cost!'; note.style.color = 'var(--red)'; }
+    else { note.textContent = `+${pct}% above cost`; note.style.color = retail >= cost*1.10 ? 'var(--green)' : 'var(--accent)'; }
+  }
+  updateNpPriceStrip(); calcNpTotal();
+}
+function updateNpPriceStrip() {
+  const cost   = parseFloat(document.getElementById('np-cost').value) || 0;
+  const retail = parseFloat(document.getElementById('np-retail').value) || 0;
+  const strip  = document.getElementById('np-price-strip');
+  if (cost > 0 && retail > 0) {
+    strip.style.display = 'flex';
+    document.getElementById('np-ps-cost').textContent   = '₹' + cost.toFixed(2);
+    document.getElementById('np-ps-retail').textContent = '₹' + retail.toFixed(2);
+    const m = document.getElementById('np-ps-margin');
+    const pct = ((retail - cost) / cost * 100).toFixed(1);
+    m.textContent = pct + '%';
+    m.style.color = retail < cost ? 'var(--red)' : 'var(--green)';
+  } else { strip.style.display = 'none'; }
+}
+function calcNpTotal() {
+  const cost = parseFloat(document.getElementById('np-cost').value) || 0;
+  const qty  = parseInt(document.getElementById('np-qty').value) || 0;
+  const total = cost * qty;
+  const paid  = parseFloat(document.getElementById('np-amount-paid').value) || 0;
+  document.getElementById('np-order-total').textContent = '₹' + total.toFixed(2);
+  const bal = Math.max(0, total - paid);
+  const prev = document.getElementById('np-bal-preview');
+  if (total > 0 && bal > 0) {
+    prev.style.display = 'block';
+    document.getElementById('np-bal-val').textContent = '₹' + bal.toFixed(2);
+  } else { prev.style.display = 'none'; }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  TAB 3 — PAYMENT
+// ─────────────────────────────────────────────────────────────────────────────
+function loadPayTab(supplierId) {
+  const billsList  = document.getElementById('pay-bills-list');
+  const applySelect = document.getElementById('pay-apply-select');
+  billsList.innerHTML = '<div style="padding:14px;text-align:center;color:var(--muted);font-size:12px;">Loading…</div>';
+  applySelect.innerHTML = '<option value="__all__">Distribute across all unpaid bills (oldest first)</option>';
+  document.getElementById('pay-total-due').textContent = '₹…';
+  document.getElementById('pay-bills-count').textContent = '';
+
+  fetch('/supplier/' + supplierId + '/finance').then(r => r.json()).then(data => {
+    purUnpaidBills = (data.purchases || []).filter(p => p.balance > 0);
+    const totalDue = purUnpaidBills.reduce((s, p) => s + p.balance, 0);
+
+    document.getElementById('pay-total-due').textContent = '₹' + totalDue.toFixed(2);
+    document.getElementById('pay-bills-count').textContent =
+      purUnpaidBills.length === 0 ? 'No outstanding balance — all clear!'
+      : `${purUnpaidBills.length} unpaid bill${purUnpaidBills.length > 1 ? 's' : ''}`;
+    document.getElementById('pay-amount-input').value = totalDue > 0 ? totalDue.toFixed(2) : '';
+    updatePayRemaining();
+
+    purUnpaidBills.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = `${p.invoice_ref || 'PUR-'+p.id}  —  ₹${p.balance.toFixed(2)} due`;
+      applySelect.appendChild(opt);
+    });
+
+    if (!purUnpaidBills.length) {
+      billsList.innerHTML = '<div style="padding:16px;text-align:center;color:var(--green);font-size:12px;">✓ No outstanding bills for this supplier.</div>';
+      return;
+    }
+    billsList.innerHTML = `<table class="mini-tbl">
+      <thead><tr><th>Invoice Ref</th><th>Date</th><th>Total</th><th>Paid</th><th>Balance</th><th>Due Date</th></tr></thead>
+      <tbody>${purUnpaidBills.map(p => `<tr>
+        <td><span class="sku-tag">${p.invoice_ref || 'PUR-'+p.id}</span></td>
+        <td style="font-size:11px;">${p.purchase_date}</td>
+        <td>₹${p.total_amount.toFixed(2)}</td>
+        <td style="color:var(--green);">₹${p.amount_paid.toFixed(2)}</td>
+        <td style="color:var(--red);font-weight:600;">₹${p.balance.toFixed(2)}</td>
+        <td style="font-size:11px;color:var(--muted);">${p.due_date || '—'}</td>
+      </tr>`).join('')}</tbody></table>`;
+  }).catch(() => {
+    billsList.innerHTML = '<div style="padding:14px;text-align:center;color:var(--red);font-size:12px;">Failed to load. Try again.</div>';
+  });
+}
+
+function updatePayRemaining() {
+  const amt = parseFloat(document.getElementById('pay-amount-input').value) || 0;
+  const totalDue = purUnpaidBills.reduce((s, p) => s + p.balance, 0);
+  const remaining = totalDue - amt;
+  const el = document.getElementById('pay-remaining');
+  if (!amt) { el.textContent = '—'; el.style.color = 'var(--muted)'; return; }
+  el.textContent = '₹' + Math.max(0, remaining).toFixed(2);
+  el.style.color = remaining <= 0 ? 'var(--green)' : 'var(--red)';
+}
+
+function submitPaymentTab() {
+  const amount  = parseFloat(document.getElementById('pay-amount-input').value);
+  const note    = document.getElementById('pay-note-input').value;
+  const applyTo = document.getElementById('pay-apply-select').value;
+  if (!purSupplierId || !amount || amount <= 0) {
+    showToast('Enter a valid payment amount.', 'error'); return;
+  }
+  let targets = [];
+  if (applyTo === '__all__') {
+    let rem = amount;
+    for (const p of purUnpaidBills) {
+      if (rem <= 0) break;
+      const pay = Math.min(rem, p.balance);
+      targets.push({ id: p.id, amount: pay }); rem -= pay;
+    }
+  } else {
+    targets = [{ id: parseInt(applyTo), amount }];
+  }
+  Promise.all(targets.map(t =>
+    fetch(`/supplier/purchase/${t.id}/pay`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/x-www-form-urlencoded'},
+      body: `amount=${t.amount.toFixed(2)}&note=${encodeURIComponent(note)}`
+    }).then(r => r.json())
+  )).then(results => {
+    const allOk = results.every(r => r.success);
+    closeModal('purchase-modal');
+    const row = document.querySelector('.finance-row.open');
+    if (row) { const sid = row.id.replace('finance-row-',''); loadFinancePanel(sid, true); }
+    showToast(allOk ? `Payment of ₹${amount.toFixed(2)} recorded!` : 'Some payments may have failed.', allOk ? 'success' : 'error');
+    if (allOk) setTimeout(() => location.reload(), 1800);
+  });
+}
+
+// ── Category dropdown (View Products modal) ────────────────────────────────
+function loadCategories() { loadCategoryDropdown(); } // alias kept
+
+// ── View Products modal ───────────────────────────────────────────────────────
+function openViewProductsModal(id, name) {
+  document.getElementById('view-products-title').textContent = name.toUpperCase();
+  document.getElementById('view-products-subtitle').textContent = 'Products supplied by ' + name;
+  document.getElementById('view-products-content').innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">Loading…</div>';
+  openModal('view-products-modal');
+  fetch('/supplier/' + id + '/products').then(r => r.json()).then(data => {
+    const el = document.getElementById('view-products-content');
+    if (!data.products || !data.products.length) {
+      el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">No products linked yet.</div>';
+      return;
+    }
+    const rows = data.products.map(p => `
+      <tr>
+        <td><span class="sku-tag">${p.sku}</span></td>
+        <td>${p.name}</td>
+        <td style="color:var(--muted)">${p.category}</td>
+        <td>₹${p.price.toFixed(2)}</td>
+        <td><span class="${p.stock < 10 ? 'stock-low' : 'stock-ok'}">${p.stock}</span></td>
+        <td style="color:var(--accent2)">₹${(p.price * p.stock).toFixed(2)}</td>
+      </tr>`).join('');
+    el.innerHTML = `<table class="mini-tbl">
+      <thead><tr><th>SKU</th><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Value</th></tr></thead>
+      <tbody>${rows}</tbody></table>`;
+  });
+}
+
+// ── Finance drawer ────────────────────────────────────────────────────────────
+let financeCache = {};
+function toggleFinance(id) {
+  const row = document.getElementById('finance-row-' + id);
+  const btn = document.getElementById('toggle-' + id);
   const isOpen = row.classList.contains('open');
+  document.querySelectorAll('.finance-row.open').forEach(r => {
+    if (r.id !== 'finance-row-' + id) {
+      r.classList.remove('open');
+      const bid = r.id.replace('finance-row-','');
+      const b = document.getElementById('toggle-' + bid);
+      if (b) b.textContent = '▶';
+    }
+  });
   row.classList.toggle('open', !isOpen);
   btn.textContent = isOpen ? '▶' : '▼';
-  if (!isOpen) loadPanel(id);
+  if (!isOpen) loadFinancePanel(id, false);
 }
 
-function loadPanel(id) {
-  const content = document.getElementById('products-content-' + id);
-  content.innerHTML = '<div class="empty-inner">Loading…</div>';
-
-  fetch('/supplier/' + id + '/products')
-    .then(r => r.json())
-    .then(data => {
-      const products = data.products;
-      if (!products || products.length === 0) {
-        content.innerHTML = '<div class="empty-inner">No products linked yet. Use ＋ Add Item to add one.</div>';
-        return;
-      }
-      const rows = products.map(p => `
-        <tr>
-          <td><span class="sku-tag">${p.sku}</span></td>
-          <td>${p.name}</td>
-          <td>${p.category}</td>
-          <td>${p.price.toFixed(2)}</td>
-          <td><span class="${p.stock < 10 ? 'stock-low' : 'stock-ok'}">${p.stock}</span></td>
-        </tr>`).join('');
-      content.innerHTML = `
-        <table>
-          <thead>
-            <tr>
-              <th>SKU</th><th>Name</th><th>Category</th><th>Price</th><th>Stock</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>`;
-    })
-    .catch(() => {
-      content.innerHTML = '<div class="empty-inner" style="color:#f87171">Failed to load. Please refresh.</div>';
-    });
+function loadFinancePanel(id, forceReload) {
+  const content = document.getElementById('finance-content-' + id);
+  content.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">Loading…</div>';
+  fetch('/supplier/' + id + '/finance').then(r => r.json()).then(data => {
+    renderFinancePanel(id, data);
+  }).catch(() => {
+    content.innerHTML = '<div style="padding:20px;text-align:center;color:var(--red)">Failed to load. Try again.</div>';
+  });
 }
-/* ── Edit supplier modal ── */
+
+function renderFinancePanel(id, data) {
+  const { purchases, summary, stock_info } = data;
+  const content = document.getElementById('finance-content-' + id);
+
+  const statusPill = s => {
+    if (s === 'paid')    return '<span class="spill spill-paid">✓ Paid</span>';
+    if (s === 'partial') return '<span class="spill spill-partial">⬤ Partial</span>';
+    return '<span class="spill spill-unpaid">✕ Unpaid</span>';
+  };
+  const overdueTag = (due, status) => {
+    if (!due || status === 'paid') return '';
+    const d = new Date(due); const now = new Date(); now.setHours(0,0,0,0);
+    if (d < now) return ' <span class="spill spill-overdue">Overdue</span>';
+    return '';
+  };
+
+  const purchaseRows = purchases.length ? purchases.map(p => {
+    const pct = p.total_amount > 0 ? Math.round((p.amount_paid / p.total_amount) * 100) : 0;
+    return `<tr>
+      <td><span class="sku-tag">${p.invoice_ref || '—'}</span></td>
+      <td style="font-size:11px">${p.purchase_date}</td>
+      <td>₹${p.total_amount.toFixed(2)}</td>
+      <td>
+        <div>₹${p.amount_paid.toFixed(2)}</div>
+        <div class="pay-bar"><div class="pay-fill" style="width:${pct}%"></div></div>
+      </td>
+      <td>${p.balance > 0 ? `<span style="color:var(--red);font-weight:600;">₹${p.balance.toFixed(2)}</span>` : `<span style="color:var(--green)">—</span>`}</td>
+      <td>${p.due_date ? p.due_date : '—'}${overdueTag(p.due_date, p.status)}</td>
+      <td>${statusPill(p.status)}</td>
+      <td>${p.balance > 0
+        ? `<button class="pay-now-btn" onclick="quickPayModal(${p.id}, ${p.balance}, '${(p.invoice_ref||'').replace(/'/g,"\\'")}')">₹ Pay</button>`
+        : ''}</td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px;">No purchases yet.</td></tr>`;
+
+  content.innerHTML = `
+    <div class="fin-tabs">
+      <div class="fin-tab active" onclick="switchTab(${id},'purchases',this)">📋 Credit Purchases</div>
+      <div class="fin-tab" onclick="switchTab(${id},'stock',this)">▦ Stock Value</div>
+    </div>
+    <div class="fin-panel active" id="fin-purchases-${id}">
+      <div class="fin-summary">
+        <div class="fin-scard"><div class="fin-scard-label">Total Billed</div><div class="fin-scard-val" style="color:var(--blue)">₹${summary.total_billed.toFixed(0)}</div></div>
+        <div class="fin-scard"><div class="fin-scard-label">Total Paid</div><div class="fin-scard-val" style="color:var(--green)">₹${summary.total_paid.toFixed(0)}</div></div>
+        <div class="fin-scard"><div class="fin-scard-label">Outstanding Due</div><div class="fin-scard-val" style="color:var(--red)">₹${summary.total_due.toFixed(0)}</div></div>
+        <div class="fin-scard"><div class="fin-scard-label">Overdue Bills</div><div class="fin-scard-val" style="color:${summary.overdue_count > 0 ? 'var(--red)' : 'var(--green)'};">${summary.overdue_count}</div></div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="mini-tbl">
+          <thead><tr><th>Invoice Ref</th><th>Date</th><th>Total</th><th>Paid</th><th>Balance</th><th>Due Date</th><th>Status</th><th></th></tr></thead>
+          <tbody>${purchaseRows}</tbody>
+        </table>
+      </div>
+    </div>
+    <div class="fin-panel" id="fin-stock-${id}">
+      <div class="fin-summary">
+        <div class="fin-scard"><div class="fin-scard-label">Products</div><div class="fin-scard-val" style="color:var(--accent2)">${stock_info.product_count}</div></div>
+        <div class="fin-scard"><div class="fin-scard-label">Total Units</div><div class="fin-scard-val">${stock_info.total_units}</div></div>
+        <div class="fin-scard"><div class="fin-scard-label">Stock Value</div><div class="fin-scard-val" style="color:var(--accent)">₹${stock_info.stock_value.toFixed(0)}</div></div>
+        <div class="fin-scard"><div class="fin-scard-label">Avg/SKU</div><div class="fin-scard-val" style="color:var(--muted);font-size:18px;">₹${stock_info.product_count > 0 ? (stock_info.stock_value/stock_info.product_count).toFixed(0) : '0'}</div></div>
+      </div>
+      <div id="fin-stock-inner-${id}"><div style="text-align:center;color:var(--muted);padding:24px;">Loading stock…</div></div>
+    </div>`;
+}
+
+function switchTab(id, panel, el) {
+  document.querySelectorAll(`#finance-content-${id} .fin-tab`).forEach(t => t.classList.remove('active'));
+  document.querySelectorAll(`#finance-content-${id} .fin-panel`).forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById(`fin-${panel}-${id}`).classList.add('active');
+  if (panel === 'stock') {
+    const inner = document.getElementById(`fin-stock-inner-${id}`);
+    if (inner && inner.querySelector('.stock-grid') === null) {
+      fetch('/supplier/' + id + '/products').then(r => r.json()).then(pd => {
+        const cards = pd.products.map(p => `
+          <div class="stock-card">
+            <div class="sc-sku">${p.sku}</div>
+            <div class="sc-name">${p.name}</div>
+            <div class="sc-val">Price: <span>₹${p.price.toFixed(2)}</span></div>
+            <div class="sc-val">Stock: <span class="${p.stock < 10 ? 'stock-low' : 'stock-ok'}">${p.stock} units</span></div>
+            <div class="sc-val" style="color:var(--accent2)">Value: ₹${(p.price * p.stock).toFixed(2)}</div>
+          </div>`).join('');
+        inner.innerHTML = cards
+          ? `<div class="stock-grid">${cards}</div>`
+          : '<div style="text-align:center;color:var(--muted);padding:24px;">No products linked.</div>';
+      });
+    }
+  }
+}
+
+// ── Quick pay from finance drawer ─────────────────────────────────────────────
+let quickPayId = null;
+function quickPayModal(purchaseId, balance, invoiceRef) {
+  quickPayId = purchaseId;
+  document.getElementById('pay-purchase-info').innerHTML =
+    `<div style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Purchase</div>
+     <div style="font-weight:600;">${invoiceRef || 'PUR-'+purchaseId}</div>
+     <div style="margin-top:6px;font-size:12px;">Outstanding: <span style="color:var(--red);font-weight:600;">₹${parseFloat(balance).toFixed(2)}</span></div>`;
+  document.getElementById('pay-amount').value = parseFloat(balance).toFixed(2);
+  document.getElementById('pay-note').value = '';
+  openModal('pay-modal');
+}
+function submitPayment() {
+  const amount = parseFloat(document.getElementById('pay-amount').value);
+  const note   = document.getElementById('pay-note').value;
+  if (!quickPayId || amount <= 0) return;
+  fetch(`/supplier/purchase/${quickPayId}/pay`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/x-www-form-urlencoded'},
+    body: `amount=${amount}&note=${encodeURIComponent(note)}`
+  }).then(r => r.json()).then(data => {
+    if (data.success) {
+      closeModal('pay-modal');
+      const row = document.querySelector('.finance-row.open');
+      if (row) { const sid = row.id.replace('finance-row-',''); loadFinancePanel(sid, true); }
+      showToast('Payment recorded!', 'success');
+    } else { showToast(data.error || 'Error.', 'error'); }
+  });
+}
+
+// ── Edit / Delete modals ──────────────────────────────────────────────────────
 function openEditSupplierModal(id, name, contact, email) {
   document.getElementById('edit-supplier-id').value      = id;
   document.getElementById('edit-supplier-name').value    = name;
@@ -476,13 +1260,19 @@ function openEditSupplierModal(id, name, contact, email) {
   document.getElementById('edit-supplier-email').value   = email;
   openModal('edit-supplier-modal');
 }
-
-/* ── Delete supplier modal ── */
 function openDeleteSupplierModal(id, name) {
   document.getElementById('delete-supplier-id').value = id;
-  document.getElementById('delete-supplier-info').textContent =
-    `You are about to delete supplier "${name}".`;
+  document.getElementById('delete-supplier-info').textContent = `You are about to delete supplier "${name}".`;
   openModal('delete-supplier-modal');
 }
+
+// Auto-dismiss flash
+setTimeout(() => {
+  document.querySelectorAll('.flash-msg').forEach(el => {
+    el.style.transition='opacity .5s'; el.style.opacity='0';
+    setTimeout(()=>el.remove(),500);
+  });
+}, 4000);
 </script>
+
 {% endblock %}
